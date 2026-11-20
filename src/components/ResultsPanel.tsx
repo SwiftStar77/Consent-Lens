@@ -347,21 +347,21 @@ export function ResultsPanel({
                         gap: '0.625rem',
                       }}
                     >
-                      {finding.originalClause && (
+                      {(finding.matchedExcerpt || finding.originalClause) && (
                         <div>
-                          <span
-                            style={{
-                              display: 'block',
-                              fontSize: '0.6875rem',
-                              fontWeight: 600,
-                              color: 'var(--text-muted)',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.04em',
-                              marginBottom: '0.25rem',
-                            }}
-                          >
-                            Exact Agreement Clause:
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.25rem' }}>
+                            <span
+                              style={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 600,
+                                color: 'var(--accent-primary)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              Grounded Text Evidence (Matched Excerpt):
+                            </span>
+                          </div>
                           <blockquote
                             style={{
                               fontSize: '0.8125rem',
@@ -374,7 +374,7 @@ export function ResultsPanel({
                               margin: 0,
                             }}
                           >
-                            &ldquo;{finding.originalClause}&rdquo;
+                            &ldquo;{finding.matchedExcerpt || finding.originalClause}&rdquo;
                           </blockquote>
                         </div>
                       )}

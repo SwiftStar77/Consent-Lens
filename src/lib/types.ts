@@ -18,7 +18,8 @@ export interface RiskItem {
   description: string;
   category: RiskCategory;
   severity: RiskSeverity;
-  originalClause: string;
+  matchedExcerpt: string; // Exact or near-exact grounded text snippet from analyzed document
+  originalClause: string; // Backward compatibility alias for matchedExcerpt
   harm: string;
   plainLanguageNote: string;
   isToggleable: boolean;
@@ -39,7 +40,9 @@ export interface AnalysisResult {
 }
 
 export interface AnalyzeRequestPayload {
-  policyText: string;
+  policyText?: string;
+  url?: string;
+  inputMode?: 'text' | 'url';
   persona: UserPersona;
   context: UsageContext;
   riskTolerance: RiskTolerance;
@@ -77,5 +80,20 @@ export function validateAnalysisResult(data: unknown): data is AnalysisResult {
   if (!Array.isArray(obj.permissionAnomalies)) return false;
   if (!Array.isArray(obj.countermeasures)) return false;
   if (typeof obj.optOutDraft !== 'string') return false;
+
+  // Validate and normalize findings
+  for (const item of obj.findings) {
+    if (!item || typeof item !== 'object') return false;
+    const f = item as unknown as Record<string, unknown>;
+    if (typeof f.title !== 'string' || typeof f.category !== 'string') return false;
+    if (typeof f.matchedExcerpt !== 'string' && typeof f.originalClause === 'string') {
+      f.matchedExcerpt = f.originalClause;
+    } else if (typeof f.matchedExcerpt === 'string' && typeof f.originalClause !== 'string') {
+      f.originalClause = f.matchedExcerpt;
+    } else if (typeof f.matchedExcerpt !== 'string' && typeof f.originalClause !== 'string') {
+      return false;
+    }
+  }
+
   return true;
 }

@@ -82,6 +82,78 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
     });
   });
 
+  describe('Strict Evidence & Zero-Hallucination Guarantees', () => {
+    it('produces zero fabricated findings and safe score for clean/benign text', () => {
+      const benignText = `
+        Simple Notes App Privacy Notice
+        We store your notes strictly on your local device.
+        We do not collect or sell your personal data.
+        No third-party trackers, ad SDKs, or remote analytics are included.
+        If you have questions, please contact our support team at support@example.com.
+      `;
+
+      const result = analyzeDeterministically(
+        benignText,
+        'everyday',
+        'utility',
+        'standard'
+      );
+
+      expect(result.findings.length).toBe(0);
+      expect(result.score).toBe(0);
+      expect(result.verdictSeverity).toBe('safe');
+      expect(result.executiveVerdict.toLowerCase()).toContain('no major red flags');
+      expect(result.countermeasures.length).toBeGreaterThan(0);
+    });
+
+    it('does NOT misinterpret "contact our support team" as address book harvesting', () => {
+      const supportEmailText = 'For questions or billing support, contact us at help@mycoolapp.com.';
+      const result = analyzeDeterministically(
+        supportEmailText,
+        'everyday',
+        'utility',
+        'standard'
+      );
+
+      const findingIds = result.findings.map((f) => f.id);
+      expect(findingIds).not.toContain('perm_contacts');
+    });
+
+    it('ensures every finding contains an actual matchedExcerpt present in the source text', () => {
+      const result = analyzeDeterministically(
+        predatoryLoanSample,
+        'everyday',
+        'finance',
+        'standard'
+      );
+
+      expect(result.findings.length).toBeGreaterThan(0);
+      for (const finding of result.findings) {
+        expect(finding.matchedExcerpt).toBeTruthy();
+        expect(typeof finding.matchedExcerpt).toBe('string');
+        expect(finding.matchedExcerpt.length).toBeGreaterThan(5);
+        expect(predatoryLoanSample.toLowerCase()).toContain(
+          finding.matchedExcerpt.substring(0, 30).toLowerCase()
+        );
+        expect(finding.originalClause).toBe(finding.matchedExcerpt);
+      }
+    });
+
+    it('ensures sample clauses never contaminate unrelated custom user text', () => {
+      const customText = 'Simple Timer tool. No network connectivity is requested or used.';
+      const result = analyzeDeterministically(
+        customText,
+        'privacy_pro',
+        'utility',
+        'strict'
+      );
+
+      expect(result.findings.length).toBe(0);
+      expect(result.score).toBeLessThan(20);
+      expect(result.verdictSeverity).toBe('safe');
+    });
+  });
+
   describe('Persona Adaptations', () => {
     it('adapts tone and notes for Accessibility persona (simple, short, jargon-free)', () => {
       const result = analyzeDeterministically(
@@ -92,7 +164,6 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
       );
 
       expect(result.executiveVerdict).toContain('Danger:');
-      // All findings should have a plain language note
       for (const finding of result.findings) {
         expect(finding.plainLanguageNote).toBeTruthy();
         expect(finding.plainLanguageNote).toContain('What happens:');
@@ -128,7 +199,7 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
 
   describe('Context Awareness & Permission Anomaly Detection', () => {
     it('flags contacts and SMS as anomalies when requested by a utility context app', () => {
-      const mockText = 'We require READ_CONTACTS and ACCESS_FINE_LOCATION to operate flashlight mode.';
+      const mockText = 'Required permission: READ_CONTACTS to sync contact list and ACCESS_FINE_LOCATION.';
       const result = analyzeDeterministically(
         mockText,
         'everyday',
@@ -153,7 +224,6 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
       const originalScore = initial.score;
       expect(originalScore).toBeGreaterThanOrEqual(70);
 
-      // Simulate toggling off contacts and SMS permissions
       const modifiedFindings: RiskItem[] = initial.findings.map((f) => {
         if (f.id === 'perm_contacts' || f.id === 'perm_sms') {
           return { ...f, isSimulatedDisabled: true };

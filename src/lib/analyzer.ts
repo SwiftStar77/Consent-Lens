@@ -21,11 +21,10 @@ interface ClauseRule {
   harmByPersona: Record<UserPersona, string>;
   plainLanguageNote: string;
   isToggleable: boolean;
-  extractClause?: (text: string) => string;
 }
 
 const RULES: ClauseRule[] = [
-  // 1. Contact Harvesting
+  // 1. Contact Harvesting (Strict regex to avoid false positives on 'contact us' or 'support contact')
   {
     id: 'perm_contacts',
     title: 'Full Address Book & Contacts Access',
@@ -35,7 +34,10 @@ const RULES: ClauseRule[] = [
     individualRiskFactor: 0.32,
     patterns: [
       /\b(read_contacts|get_accounts)\b/i,
-      /\b(address\s*book|contact\s*list|contacts|phone\s*numbers?)\b/i,
+      /\b(address\s*book|contact\s*list)\b/i,
+      /\b(access( to)?|collect(ion of)?|harvest(ing)?|upload(ing)?|read(ing)?|export(ing)?)\s+[\w\s]{0,25}\b(telephone|mobile|user|phone|device)?\s*(contacts|address\s*book|phone\s*numbers)\b/i,
+      /\b(contacts\s*and\s*call\s*logs?)\b/i,
+      /\b(individuals\s*listed\s*in\s*your\s*mobile\s*address\s*book)\b/i,
     ],
     isAnomalyIn: ['utility', 'saas', 'health', 'finance'],
     harmByPersona: {
@@ -61,7 +63,8 @@ const RULES: ClauseRule[] = [
     individualRiskFactor: 0.35,
     patterns: [
       /\b(read_sms|receive_sms|send_sms)\b/i,
-      /\b(text\s*messages?|sms\s*messages?|transactional\s*sms|bank\s*statements?\s*via\s*sms)\b/i,
+      /\b(background\s*reading\s*of|intercept|access\s*to)\s+[\w\s]{0,20}\b(sms|text\s*messages?)\b/i,
+      /\b(transactional\s*sms|sms\s*logs?|inbox\s*messages?|bank\s*statements?\s*via\s*sms)\b/i,
     ],
     isAnomalyIn: ['utility', 'saas', 'health', 'finance'],
     harmByPersona: {
@@ -87,7 +90,8 @@ const RULES: ClauseRule[] = [
     individualRiskFactor: 0.28,
     patterns: [
       /\b(access_fine_location|access_background_location|fine_location)\b/i,
-      /\b(gps\s*tracking|precise\s*location|background\s*location|location\s*even\s*when\s*the\s*app\s*is\s*closed)\b/i,
+      /\b(gps\s*tracking|precise\s*location|background\s*location)\b/i,
+      /\b(location\s*even\s*when\s*the\s*app\s*is\s*closed)\b/i,
     ],
     isAnomalyIn: ['utility', 'saas', 'finance'],
     harmByPersona: {
@@ -103,7 +107,7 @@ const RULES: ClauseRule[] = [
     isToggleable: true,
   },
 
-  // 4. Camera & Storage Access (Predatory Gallery / Selfie Scanning)
+  // 4. Camera & Storage Access (Predatory Gallery / Biometric Scanning)
   {
     id: 'perm_camera_storage',
     title: 'Camera & Gallery Storage Scanning',
@@ -112,7 +116,7 @@ const RULES: ClauseRule[] = [
     baseWeight: 16,
     individualRiskFactor: 0.20,
     patterns: [
-      /\b(camera)\b/i,
+      /\b(camera\s*&|camera\s*permission|access\s*to\s*camera)\b/i,
       /\b(scan\s*device\s*gallery|borrower\s*selfies?|biometric\s*facial\s*scans?)\b/i,
     ],
     harmByPersona: {
@@ -139,7 +143,7 @@ const RULES: ClauseRule[] = [
     patterns: [
       /\b(collection\s*agencies|recovery\s*partners|telemarketing\s*affiliates|non-banking\s*financial|nbfc)\b/i,
       /\b(sell,\s*share,\s*or\s*license\s*your\s*contact\s*book)\b/i,
-      /\b(contact\s*designated\s*emergency\s*contacts|individuals\s*listed\s*in\s*your\s*mobile\s*address\s*book)\b/i,
+      /\b(contact\s*designated\s*emergency\s*contacts)\b/i,
     ],
     harmByPersona: {
       everyday:
@@ -307,17 +311,30 @@ const RULES: ClauseRule[] = [
 ];
 
 /**
- * Extracts a matching sentence or snippet from the policy text.
+ * Checks if a sentence explicitly negates the clause (e.g. "We do not sell or share", "Zero tracking").
  */
-function extractMatchingSnippet(text: string, pattern: RegExp): string {
+function isNegatedStatement(sentence: string): boolean {
+  return /\b(do\s*not|does\s*not|will\s*not|never|no|zero|without|neither|nor|not\s*required)\s+[\w\s]{0,35}\b(sell|share|track|collect|record|transfer|require|access|charge|convert)\b/i.test(
+    sentence
+  );
+}
+
+/**
+ * Extracts an exact matching sentence or snippet from the policy text.
+ * Returns null if no actual sentence matches or if the sentence contains an active negation.
+ */
+function extractMatchingSnippet(text: string, pattern: RegExp): string | null {
   const sentences = text.split(/(?<=[.!?\n])\s+/);
   for (const sentence of sentences) {
     if (pattern.test(sentence)) {
+      if (isNegatedStatement(sentence)) {
+        continue;
+      }
       const trimmed = sentence.trim();
       return trimmed.length > 220 ? trimmed.substring(0, 217) + '...' : trimmed;
     }
   }
-  return 'Clause referenced in agreement.';
+  return null;
 }
 
 /**
@@ -331,15 +348,15 @@ function generateExecutiveVerdict(
   context: UsageContext,
   anomaliesCount: number
 ): string {
-  if (severity === 'safe' || score < 20) {
+  if (severity === 'safe' || score < 20 || findingsCount === 0) {
     switch (persona) {
       case 'accessibility':
-        return 'Good news: This app does not ask for dangerous permissions. It keeps your files on your device and does not send them to outside companies.';
+        return 'Good news: No major red flags were found in this agreement. It does not ask for dangerous permissions or contain hidden charges.';
       case 'privacy_pro':
         return 'Minimal threat surface detected. The provided terms respect data minimization and lack predatory tracking or indefinite retention covenants.';
       case 'everyday':
       default:
-        return 'This app appears safe and transparent. It requests only necessary local permissions and does not engage in aggressive tracking or silent billing traps.';
+        return 'No major red flags were found in the provided text. The terms appear transparent and request only standard, scoped permissions.';
     }
   }
 
@@ -444,7 +461,7 @@ function generateCountermeasures(
   if (steps.length === 0) {
     steps.push(
       persona === 'accessibility'
-        ? 'No special actions needed. You can use this app with standard safety.'
+        ? 'No special actions needed. The provided terms respect standard digital privacy boundaries.'
         : 'Standard hygiene: ensure you install only from verified app stores and review permissions periodically.'
     );
   }
@@ -461,6 +478,18 @@ function generateOptOutDraft(
   context: UsageContext
 ): string {
   const dateStr = new Date().toISOString().split('T')[0];
+
+  if (findings.length === 0) {
+    return `Subject: Privacy Confirmation
+
+Date: ${dateStr}
+To: Customer Support
+
+Hello,
+I have reviewed your current terms and privacy notice. No opt-out or deletion request is required at this time as the provided terms follow standard data minimization.
+
+Thank you.`;
+  }
 
   if (persona === 'accessibility') {
     return `Subject: Please delete my data and stop sharing it
@@ -534,7 +563,6 @@ export function calculateScoreFromFindings(
   context: UsageContext,
   tolerance: RiskTolerance
 ): { score: number; verdictSeverity: RiskSeverity } {
-  // Only active (non-simulated-disabled) findings contribute
   const activeFindings = findings.filter((f) => !f.isSimulatedDisabled);
 
   if (activeFindings.length === 0) {
@@ -545,15 +573,12 @@ export function calculateScoreFromFindings(
   let survivalProb = 1.0;
 
   for (const item of activeFindings) {
-    // Map base weight (10-30) to individual probability factor (0.12 - 0.35)
     let factor = Math.min(0.40, Math.max(0.12, item.weight / 80));
 
-    // Tolerance adjustment
     if (tolerance === 'strict') {
       factor = Math.min(0.50, factor * 1.25);
     }
 
-    // Persona-based weighting tweaks
     if (persona === 'privacy_pro') {
       if (item.category === 'third_party_sharing' || item.category === 'retention_security') {
         factor = Math.min(0.50, factor * 1.2);
@@ -567,8 +592,6 @@ export function calculateScoreFromFindings(
     survivalProb *= (1.0 - factor);
   }
 
-  // Risk probability = 1 - survivalProb
-  // Scale to 0-100 with a natural progression
   const rawRisk = (1.0 - survivalProb) * 100;
   const scaledScore = Math.min(100, Math.max(0, Math.round(rawRisk)));
 
@@ -609,7 +632,7 @@ export function recalculateRiskScore(
   );
 
   const updated = calculateScoreFromFindings(findings, persona, context, tolerance);
-  const scoreDelta = updated.score - original.score; // usually negative or zero
+  const scoreDelta = updated.score - original.score;
 
   const activeCount = findings.filter((f) => !f.isSimulatedDisabled).length;
   const verdict = generateExecutiveVerdict(
@@ -631,7 +654,7 @@ export function recalculateRiskScore(
 
 /**
  * Deterministic Heuristic Risk Analyzer.
- * Runs completely locally with zero API keys or external network dependencies.
+ * Strictly text-grounded: ONLY flags risks if an exact matching excerpt exists in policyText.
  */
 export function analyzeDeterministically(
   policyText: string,
@@ -639,44 +662,45 @@ export function analyzeDeterministically(
   context: UsageContext,
   tolerance: RiskTolerance
 ): AnalysisResult {
-  const normalizedText = policyText.toLowerCase();
   const matchedFindings: RiskItem[] = [];
   const permissionAnomalies: string[] = [];
 
   for (const rule of RULES) {
-    const isMatch = rule.patterns.some((pattern) => pattern.test(normalizedText));
-    if (isMatch) {
-      // Check for category permission anomaly
-      if (rule.isAnomalyIn && rule.isAnomalyIn.includes(context)) {
-        permissionAnomalies.push(
-          `Permission "${rule.title}" is abnormal and high-risk for the "${context.toUpperCase()}" category.`
-        );
+    let matchedSnippet: string | null = null;
+    for (const pattern of rule.patterns) {
+      const snippet = extractMatchingSnippet(policyText, pattern);
+      if (snippet) {
+        matchedSnippet = snippet;
+        break;
       }
-
-      // Extract context snippet
-      let extractedClause = 'Identified in agreement text.';
-      for (const pattern of rule.patterns) {
-        const snippet = extractMatchingSnippet(policyText, pattern);
-        if (snippet !== 'Clause referenced in agreement.') {
-          extractedClause = snippet;
-          break;
-        }
-      }
-
-      matchedFindings.push({
-        id: rule.id,
-        title: rule.title,
-        description: rule.harmByPersona[persona],
-        category: rule.category,
-        severity: rule.defaultSeverity,
-        originalClause: extractedClause,
-        harm: rule.harmByPersona[persona],
-        plainLanguageNote: rule.plainLanguageNote,
-        isToggleable: rule.isToggleable,
-        isSimulatedDisabled: false,
-        weight: rule.baseWeight,
-      });
     }
+
+    // STRICT ZERO-HALLUCINATION GUARD:
+    // If no verifiable snippet matching the rule exists in the text, DO NOT flag it!
+    if (!matchedSnippet) {
+      continue;
+    }
+
+    if (rule.isAnomalyIn && rule.isAnomalyIn.includes(context)) {
+      permissionAnomalies.push(
+        `Permission "${rule.title}" is abnormal and high-risk for the "${context.toUpperCase()}" category.`
+      );
+    }
+
+    matchedFindings.push({
+      id: rule.id,
+      title: rule.title,
+      description: rule.harmByPersona[persona],
+      category: rule.category,
+      severity: rule.defaultSeverity,
+      matchedExcerpt: matchedSnippet,
+      originalClause: matchedSnippet,
+      harm: rule.harmByPersona[persona],
+      plainLanguageNote: rule.plainLanguageNote,
+      isToggleable: rule.isToggleable,
+      isSimulatedDisabled: false,
+      weight: rule.baseWeight,
+    });
   }
 
   // Calculate score
