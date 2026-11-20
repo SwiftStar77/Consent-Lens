@@ -4,18 +4,31 @@ import React from 'react';
 import { RiskSeverity } from '@/lib/types';
 import { AlertTriangleIcon, AlertCircleIcon, CheckCircleIcon } from './Icons';
 
+/**
+ * Props for RadialRiskMeter Component
+ */
 interface RadialRiskMeterProps {
+  /** Numerical risk score from 0 to 100 */
   score: number;
+  /** Categorized severity tier: 'high', 'medium', 'low', or 'safe' */
   severity: RiskSeverity;
+  /** Diameter of the SVG meter in pixels (defaults to 132) */
   size?: number;
 }
 
+/**
+ * Radial Risk Meter Component
+ *
+ * Renders an animated SVG circular gauge illustrating the computed risk score
+ * alongside a high-contrast severity status badge.
+ */
 export function RadialRiskMeter({ score, severity, size = 132 }: RadialRiskMeterProps) {
   const radius = 48;
   const strokeWidth = 9;
   const circumference = 2 * Math.PI * radius;
   const progressOffset = circumference - (Math.min(100, Math.max(0, score)) / 100) * circumference;
 
+  // Resolve color by severity tier
   const color =
     severity === 'high'
       ? 'var(--risk-high-text)'
@@ -23,6 +36,7 @@ export function RadialRiskMeter({ score, severity, size = 132 }: RadialRiskMeter
       ? 'var(--risk-medium-text)'
       : 'var(--risk-low-text)';
 
+  // Resolve user-friendly label
   const severityLabel =
     severity === 'high'
       ? 'High Risk'
@@ -44,7 +58,7 @@ export function RadialRiskMeter({ score, severity, size = 132 }: RadialRiskMeter
     >
       <div className="radial-meter-container" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox="0 0 120 120" className="radial-meter-svg">
-          {/* Track background */}
+          {/* Background track circle */}
           <circle
             cx="60"
             cy="60"
@@ -53,7 +67,7 @@ export function RadialRiskMeter({ score, severity, size = 132 }: RadialRiskMeter
             stroke="var(--bg-subtle)"
             strokeWidth={strokeWidth}
           />
-          {/* Progress stroke */}
+          {/* Animated active score progress circle */}
           <circle
             cx="60"
             cy="60"
@@ -70,7 +84,7 @@ export function RadialRiskMeter({ score, severity, size = 132 }: RadialRiskMeter
           />
         </svg>
 
-        {/* Center label */}
+        {/* Centered numerical score readout */}
         <div className="radial-meter-center">
           <span
             style={{
@@ -98,7 +112,7 @@ export function RadialRiskMeter({ score, severity, size = 132 }: RadialRiskMeter
         </div>
       </div>
 
-      {/* High-contrast severity pill */}
+      {/* High-contrast severity status badge */}
       <span
         className={`badge-risk ${
           severity === 'high'

@@ -2,18 +2,40 @@
 
 import React from 'react';
 import { RiskItem, RiskSeverity } from '@/lib/types';
-import { SlidersIcon, RotateCcwIcon, CheckCircleIcon, AlertTriangleIcon, AlertCircleIcon } from './Icons';
+import {
+  SlidersIcon,
+  RotateCcwIcon,
+  CheckCircleIcon,
+  AlertTriangleIcon,
+  AlertCircleIcon,
+} from './Icons';
 
+/**
+ * Props for the RiskSimulator Component
+ */
 interface RiskSimulatorProps {
+  /** Array of risk findings detected in the analyzed agreement */
   findings: RiskItem[];
+  /** Callback invoked when a specific finding toggle is flipped */
   onToggleFinding: (id: string) => void;
+  /** Callback to restore all simulator toggles to their default baseline */
   onResetSimulator: () => void;
-  originalScore: number;
+  /** Initial baseline score prior to any simulation toggles */
+  originalScore?: number;
+  /** Dynamically recalculated score reflecting toggled-off clauses */
   simulatedScore: number;
+  /** Dynamically recalculated severity tier */
   simulatedSeverity: RiskSeverity;
+  /** Difference in score between baseline and simulated state */
   scoreDelta: number;
 }
 
+/**
+ * Interactive Risk Simulator Component ("What If I Turn These Off?")
+ *
+ * Allows users to interactively toggle off high-risk permissions or predatory clauses,
+ * recalculating their risk exposure score in real time.
+ */
 export function RiskSimulator({
   findings,
   onToggleFinding,
@@ -22,6 +44,7 @@ export function RiskSimulator({
   simulatedSeverity,
   scoreDelta,
 }: RiskSimulatorProps) {
+  // Only display findings that can realistically be toggled/revoked
   const toggleableItems = findings.filter((f) => f.isToggleable);
 
   if (toggleableItems.length === 0) {
@@ -32,6 +55,7 @@ export function RiskSimulator({
 
   return (
     <section className="elevated-card" aria-labelledby="simulator-card-title">
+      {/* Header and Reset Action */}
       <div
         style={{
           display: 'flex',
@@ -140,7 +164,7 @@ export function RiskSimulator({
         </span>
       </div>
 
-      {/* Toggle Rows */}
+      {/* Interactive Toggle Rows */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
         {toggleableItems.map((item) => {
           const isOff = !!item.isSimulatedDisabled;

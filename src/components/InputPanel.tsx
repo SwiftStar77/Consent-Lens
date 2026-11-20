@@ -10,19 +10,39 @@ import {
   ShieldIcon,
 } from './Icons';
 
+/**
+ * Props for the InputPanel Component
+ */
 interface InputPanelProps {
+  /** Current input mode: 'text' (pasted policy) or 'url' (web link) */
   inputMode: 'text' | 'url';
+  /** Function to update the input mode */
   setInputMode: (mode: 'text' | 'url') => void;
+  /** Raw text content of the policy or permissions */
   policyText: string;
+  /** Setter for the raw policy text */
   setPolicyText: (val: string) => void;
+  /** Web URL string for website / app policy check */
   urlInput: string;
+  /** Setter for the web URL input */
   setUrlInput: (val: string) => void;
+  /** Callback to trigger policy analysis */
   onAnalyze: () => void;
+  /** Callback to clear current inputs */
   onClear: () => void;
+  /** Indicates whether analysis is currently in progress */
   isLoading: boolean;
+  /** Error message to display, if any */
   errorMessage: string | null;
 }
 
+/**
+ * Stage 1: Focused Input Screen Component
+ *
+ * Provides an uncluttered, tactile card with two clear input modes:
+ * 1. Paste Policy or App Permissions (textarea)
+ * 2. Check Website or App Link (URL input with SSRF protection)
+ */
 export function InputPanel({
   inputMode,
   setInputMode,
@@ -41,7 +61,9 @@ export function InputPanel({
 
   return (
     <div style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>
-      {/* Crisp Value Proposition */}
+      {/* =================================================================== */}
+      {/* Value Proposition & Headline                                        */}
+      {/* =================================================================== */}
       <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
         <div
           style={{
@@ -72,7 +94,9 @@ export function InputPanel({
         </p>
       </div>
 
-      {/* Main Unified Input Card */}
+      {/* =================================================================== */}
+      {/* Main Unified Input Card                                             */}
+      {/* =================================================================== */}
       <section className="elevated-card" aria-label="Privacy policy analysis input">
         {/* Mode Switcher Tabs */}
         <div className="mode-tabs" role="tablist" aria-label="Input format selector">
@@ -98,9 +122,10 @@ export function InputPanel({
           </button>
         </div>
 
-        {/* Input Area */}
+        {/* Dynamic Input Form Field */}
         <div style={{ marginBottom: '1.5rem' }}>
           {isTextMode ? (
+            /* Mode A: Paste Text */
             <div>
               <div
                 style={{
@@ -135,6 +160,7 @@ export function InputPanel({
               />
             </div>
           ) : (
+            /* Mode B: Check URL */
             <div>
               <label
                 htmlFor="url-input-field"
@@ -166,7 +192,7 @@ export function InputPanel({
           )}
         </div>
 
-        {/* Error notification if any */}
+        {/* Error Banner Notification (if present) */}
         {errorMessage && (
           <div
             role="alert"
@@ -185,7 +211,7 @@ export function InputPanel({
           </div>
         )}
 
-        {/* Primary Action Button */}
+        {/* Primary Call-to-Action Bar */}
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button
             type="button"

@@ -3,10 +3,18 @@
 import React from 'react';
 import { ShieldIcon } from './Icons';
 
+/**
+ * Header Component Props
+ */
 interface HeaderProps {
+  /** Optional callback to return to the Stage 1 input screen */
   onResetToHome?: () => void;
 }
 
+/**
+ * Top Navigation Header
+ * Displays the centered ConsentLens branding and shield logo.
+ */
 export function Header({ onResetToHome }: HeaderProps) {
   return (
     <header
@@ -43,6 +51,7 @@ export function Header({ onResetToHome }: HeaderProps) {
           }}
           title="ConsentLens Home"
         >
+          {/* Centered App Logo Badge */}
           <div
             style={{
               width: '36px',
@@ -60,6 +69,8 @@ export function Header({ onResetToHome }: HeaderProps) {
           >
             <ShieldIcon size={20} />
           </div>
+
+          {/* App Title & Subtitle */}
           <div>
             <span
               style={{

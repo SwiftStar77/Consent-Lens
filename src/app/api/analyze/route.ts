@@ -25,9 +25,12 @@ import {
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/prompts';
 import { analyzeDeeply } from '@/lib/deepAnalyzer';
 
-// In-memory server-side result cache (keyed by normalized input hash)
+/**
+ * Server-Side In-Memory Result Cache
+ * Prevents redundant Gemini API calls and preserves rate-limit quota for identical requests.
+ */
 const serverCache = new Map<string, { result: AnalysisResult; timestamp: number }>();
-const CACHE_TTL_MS = 1000 * 60 * 60 * 4; // 4 hours
+const CACHE_TTL_MS = 1000 * 60 * 60 * 4; // 4 hours TTL
 
 /** Realistic browser User-Agent to avoid bot-blocking on mainstream news/ecommerce sites */
 const BROWSER_UA =
@@ -41,6 +44,9 @@ const POLICY_PATH_KEYWORDS = ['privacy', 'terms', 'cookie', 'legal', 'policy', '
 
 /**
  * Checks if a URL path already points to a privacy/terms page.
+ *
+ * @param urlStr - Target URL
+ * @returns boolean indicating if the path looks like a policy page
  */
 function isLikelyPolicyUrl(urlStr: string): boolean {
   try {
@@ -53,8 +59,11 @@ function isLikelyPolicyUrl(urlStr: string): boolean {
 }
 
 /**
- * Finds the best privacy/terms anchor href from raw HTML using regex.
- * Returns absolute URL string or null.
+ * Scans raw HTML to discover privacy policy and terms of service links on homepages.
+ *
+ * @param html - Raw webpage HTML string
+ * @param baseUrl - Base URL for resolving relative links
+ * @returns Absolute URL of discovered policy page, or null
  */
 function findPrivacyLink(html: string, baseUrl: string): string | null {
   const anchorRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
@@ -71,7 +80,7 @@ function findPrivacyLink(html: string, baseUrl: string): string | null {
     if (policyTerms.some((kw) => linkText.includes(kw) || hrefLower.includes(kw))) {
       try {
         const absolute = new URL(href, baseUrl).toString();
-        // Prefer privacy links over terms
+        // Strongly prefer privacy-specific links over generic terms
         if (hrefLower.includes('privacy') || linkText.includes('privacy')) {
           return absolute;
         }
@@ -79,7 +88,7 @@ function findPrivacyLink(html: string, baseUrl: string): string | null {
           bestHref = absolute;
         }
       } catch {
-        // Invalid href, skip
+        // Invalid or unparseable href, skip
       }
     }
   }
@@ -88,7 +97,10 @@ function findPrivacyLink(html: string, baseUrl: string): string | null {
 }
 
 /**
- * Fetches a URL with realistic browser headers and returns extracted text.
+ * Fetches a URL with realistic browser headers and extracts readable text.
+ *
+ * @param url - Validated and sanitized HTTP/HTTPS target
+ * @returns Object with extracted text, status code, and blocked flag
  */
 async function fetchPolicyText(
   url: string
@@ -152,6 +164,16 @@ async function fetchPolicyText(
   return { text: extracted, status: httpStatus, blocked: false };
 }
 
+/**
+ * POST /api/analyze Handler
+ *
+ * Orchestrates policy text analysis:
+ * 1. Validates inputs, mode, and parameters
+ * 2. Fetches and discovers policy text if URL mode is requested (with SSRF defense)
+ * 3. Checks memory cache
+ * 4. Attempts live Gemini analysis (primary: gemini-3.5-flash-lite, fallback: gemini-3.8-flash)
+ * 5. Seamlessly executes Deep Sentence-Level Rule Engine if API limits are hit or key is absent
+ */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null);
@@ -163,7 +185,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Default persona, context, and risk tolerance if not provided
+    // Default persona, context, and risk tolerance if omitted
     const persona: UserPersona = isValidPersona(body.persona) ? body.persona : 'everyday';
     const context: UsageContext = isValidContext(body.context) ? body.context : 'utility';
     const riskTolerance: RiskTolerance = isValidTolerance(body.riskTolerance)
@@ -174,6 +196,7 @@ export async function POST(req: NextRequest) {
     let policyTextToAnalyze = '';
     let resolvedSourceUrl: string | undefined;
 
+    // --- URL Input Handling ---
     if (inputMode === 'url') {
       const urlValidation = validateAndSanitizeUrl(body.url);
       if (!urlValidation.isValid || !urlValidation.normalizedUrl) {
@@ -186,7 +209,7 @@ export async function POST(req: NextRequest) {
       const targetUrl = urlValidation.normalizedUrl;
       resolvedSourceUrl = targetUrl;
 
-      // --- Step 1: Try to fetch the given URL ---
+      // Step 1: Initial page fetch
       let fetchResult = await fetchPolicyText(targetUrl);
 
       if (fetchResult.blocked) {
@@ -201,7 +224,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // --- Step 2: If homepage or insufficient text, look for privacy/terms links ---
+      // Step 2: Auto-discover privacy/terms link if homepage or minimal text
       if (fetchResult.text.length < MIN_FETCHED_CHARS || !isLikelyPolicyUrl(targetUrl)) {
         try {
           const htmlRes = await fetch(targetUrl, {
@@ -221,11 +244,11 @@ export async function POST(req: NextRequest) {
             }
           }
         } catch {
-          // If secondary fetch fails, fall through to threshold check
+          // If secondary discovery fetch fails, fall through to threshold check
         }
       }
 
-      // --- Step 3: Threshold check after fetch attempts ---
+      // Step 3: Threshold check
       if (fetchResult.text.length < MIN_FETCHED_CHARS) {
         return NextResponse.json(
           {
@@ -241,7 +264,7 @@ export async function POST(req: NextRequest) {
 
       policyTextToAnalyze = fetchResult.text;
     } else {
-      // Text mode
+      // --- Direct Text Input Handling ---
       const rawPolicyText = body.policyText;
       if (!rawPolicyText || typeof rawPolicyText !== 'string') {
         return NextResponse.json(
@@ -263,7 +286,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- Cache lookup (normalized input hash) ---
+    // --- Check Server Cache ---
     const cacheKey = generateCacheKey(policyTextToAnalyze, persona, context, riskTolerance);
     const cached = serverCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -275,7 +298,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- Attempt Gemini Analysis First ---
+    // --- Attempt Primary Engine: Google Gemini API ---
     const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
     const primaryModel = process.env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite';
     const fallbackModel = 'gemini-3.8-flash';
@@ -288,7 +311,7 @@ export async function POST(req: NextRequest) {
       const systemPrompt = buildSystemPrompt(persona, context, riskTolerance);
       const userPrompt = buildUserPrompt(condensedText);
 
-      // Attempt 1: Primary Gemini Model
+      // Try primary model
       try {
         const rawRes = await callGeminiAnalysis(systemPrompt, userPrompt, geminiApiKey, primaryModel);
         if (rawRes && validateAnalysisResult(rawRes)) {
@@ -296,7 +319,7 @@ export async function POST(req: NextRequest) {
           geminiSucceeded = true;
         }
       } catch {
-        // Primary attempt failed, try fallback model if different
+        // If primary failed, attempt automatic retry on fallback model
         if (primaryModel !== fallbackModel) {
           try {
             const retryRes = await callGeminiAnalysis(systemPrompt, userPrompt, geminiApiKey, fallbackModel);
@@ -311,7 +334,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // If Gemini succeeded, ground findings and return
+    // If Gemini succeeded, verify findings grounding and return
     if (geminiSucceeded && geminiParsedResult) {
       const parsed = geminiParsedResult as AnalysisResult;
       const verifiedFindings = verifyFindingsGrounding(parsed.findings, policyTextToAnalyze);
@@ -345,7 +368,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- Seamless Fallback: Deep Local Clause & Permission Analyzer ---
+    // --- Fallback Engine: Deep Local Clause & Permission Analyzer ---
     // If Gemini rate-limited (429), errored, or had no key, NEVER return HTTP 500!
     // Immediately execute the deep sentence-level analyzer.
     const deepResult = analyzeDeeply(policyTextToAnalyze, persona, context, riskTolerance);
@@ -359,7 +382,7 @@ export async function POST(req: NextRequest) {
       sourceUrl: resolvedSourceUrl,
     });
   } catch {
-    // If even the wrapper catches an exception, still run the deep analyzer as ultimate safety net
+    // Ultimate defensive catch: run safe baseline analysis
     try {
       const fallbackDeep = analyzeDeeply('Standard terms');
       return NextResponse.json({

@@ -1,5 +1,16 @@
 'use client';
 
+/**
+ * Stage 2: Scannable Results & Action View Component
+ *
+ * Renders the comprehensive policy audit results:
+ * 1. Top Navigation & Engine Indicator (Gemini AI or Deep Rule Engine)
+ * 2. Hero Risk Summary Card with RadialRiskMeter and Executive Verdict
+ * 3. Interactive Risk Simulator ("What If I Turn These Off?")
+ * 4. Progressive Disclosure Breakdown with Grounded Quotes
+ * 5. One-Click Action Card with Countermeasures Checklist & Pre-drafted Opt-Out Letter
+ */
+
 import React, { useState } from 'react';
 import { AnalysisResult, RiskCategory, RiskItem, UserPersona } from '@/lib/types';
 import { RadialRiskMeter } from './RadialRiskMeter';
@@ -20,18 +31,31 @@ import {
   InfoIcon,
 } from './Icons';
 
+/**
+ * Props for ResultsPanel Component
+ */
 interface ResultsPanelProps {
+  /** Full analysis result returned from backend */
   result: AnalysisResult;
+  /** Dynamically simulated score reflecting toggled-off findings */
   simulatedScore: number;
+  /** Dynamically simulated severity tier */
   simulatedSeverity: AnalysisResult['verdictSeverity'];
+  /** Numerical difference between baseline score and simulated score */
   scoreDelta: number;
+  /** Array of active risk items */
   findings: RiskItem[];
+  /** Callback to toggle a finding switch */
   onToggleFinding: (id: string) => void;
+  /** Callback to reset simulator toggles */
   onResetSimulator: () => void;
+  /** Callback to navigate back to Stage 1 input */
   onBack: () => void;
+  /** User persona active during analysis */
   persona: UserPersona;
 }
 
+/** Icon mapping for risk categories */
 const CATEGORY_ICONS: Record<RiskCategory, React.ReactNode> = {
   data_collection: <ShieldIcon size={16} />,
   third_party_sharing: <FileTextIcon size={16} />,
@@ -53,6 +77,9 @@ export function ResultsPanel({
   const [copied, setCopied] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  /**
+   * Copies the pre-drafted opt-out request letter to clipboard with fallback
+   */
   const handleCopyOptOut = async () => {
     if (!result.optOutDraft) return;
     try {
@@ -71,6 +98,9 @@ export function ResultsPanel({
     }
   };
 
+  /**
+   * Toggles progressive disclosure accordion on finding cards
+   */
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
   };
@@ -83,7 +113,9 @@ export function ResultsPanel({
 
   return (
     <div style={{ maxWidth: '820px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Top Navigation & Status Bar */}
+      {/* =================================================================== */}
+      {/* Top Navigation & Status Bar                                         */}
+      {/* =================================================================== */}
       <div
         style={{
           display: 'flex',
@@ -104,6 +136,7 @@ export function ResultsPanel({
           <span style={{ fontWeight: 600 }}>Analyze Another</span>
         </button>
 
+        {/* Transparent Engine Indicator Badge */}
         <span className="engine-pill">
           {result.engineUsed === 'live_ai' || result.engineUsed === 'Gemini AI' ? (
             <>
@@ -119,7 +152,9 @@ export function ResultsPanel({
         </span>
       </div>
 
-      {/* 1. Hero Risk Summary Card (At-a-Glance Clarity) */}
+      {/* =================================================================== */}
+      {/* 1. Hero Risk Summary Card                                           */}
+      {/* =================================================================== */}
       <section className="elevated-card" aria-label="Risk assessment overview">
         <div
           style={{
@@ -228,7 +263,9 @@ export function ResultsPanel({
         )}
       </section>
 
-      {/* 2. Interactive "What If I Turn These Off?" Simulator Card */}
+      {/* =================================================================== */}
+      {/* 2. Interactive Risk Simulator ("What If I Turn These Off?")         */}
+      {/* =================================================================== */}
       <RiskSimulator
         findings={findings}
         onToggleFinding={onToggleFinding}
@@ -239,7 +276,9 @@ export function ResultsPanel({
         scoreDelta={scoreDelta}
       />
 
-      {/* 3. Progressive Disclosure Breakdown (Accordion / Expandable Cards) */}
+      {/* =================================================================== */}
+      {/* 3. Progressive Disclosure Breakdown                                 */}
+      {/* =================================================================== */}
       <section className="elevated-card" aria-label="Detailed findings breakdown">
         <div style={{ marginBottom: '1.125rem' }}>
           <h2 style={{ fontSize: '1.125rem', fontWeight: 600 }}>
@@ -406,7 +445,9 @@ export function ResultsPanel({
         )}
       </section>
 
-      {/* 4. One-Click Action Card */}
+      {/* =================================================================== */}
+      {/* 4. One-Click Action Card                                            */}
+      {/* =================================================================== */}
       <section
         className="elevated-card"
         style={{
