@@ -3,17 +3,13 @@ import './globals.css';
 
 /**
  * Global Root Metadata
- * Configures application title, description, and the custom magnifying glass favicon.
+ * Configures application title, description, and SEO properties.
+ * Favicon and icons are automatically served via App Router convention (src/app/icon.png & src/app/favicon.ico).
  */
 export const metadata: Metadata = {
   title: 'ConsentLens | Context-Aware Consent & Risk Auditor',
   description:
     'Context-aware digital consent, permission, and dark-pattern auditor. Evaluates agreements dynamically based on persona, app context, and risk tolerance.',
-  icons: {
-    icon: '/icon.png',
-    shortcut: '/icon.png',
-    apple: '/icon.png',
-  },
 };
 
 /**
