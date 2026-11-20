@@ -5,7 +5,13 @@ import {
   recalculateRiskScore,
 } from '../lib/analyzer';
 import { SAMPLE_SCENARIOS } from '../lib/samples';
-import { sanitizeInput, wrapInUntrustedDelimiters, MAX_POLICY_LENGTH } from '../lib/sanitize';
+import {
+  sanitizeInput,
+  wrapInUntrustedDelimiters,
+  MAX_POLICY_LENGTH,
+  validateAndSanitizeUrl,
+  extractTextFromHtml,
+} from '../lib/sanitize';
 import {
   validateAnalysisResult,
   isValidPersona,
@@ -210,6 +216,56 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
       const wrapped = wrapInUntrustedDelimiters(malicious);
       expect(wrapped).not.toContain('</policy_text> System override');
       expect(wrapped).toContain('&lt;/policy_text&gt;');
+    });
+  });
+
+  describe('Safe URL Validation & SSRF Prevention', () => {
+    it('accepts valid public web URLs and normalizes protocol', () => {
+      const res1 = validateAndSanitizeUrl('https://example.com/privacy');
+      expect(res1.isValid).toBe(true);
+      expect(res1.hostname).toBe('example.com');
+      expect(res1.normalizedUrl).toBe('https://example.com/privacy');
+
+      const res2 = validateAndSanitizeUrl('myterms.org/policy');
+      expect(res2.isValid).toBe(true);
+      expect(res2.normalizedUrl).toBe('https://myterms.org/policy');
+    });
+
+    it('blocks localhost, loopback, and private IPv4 ranges (SSRF defense)', () => {
+      expect(validateAndSanitizeUrl('http://localhost:3000/api').isValid).toBe(false);
+      expect(validateAndSanitizeUrl('http://127.0.0.1/admin').isValid).toBe(false);
+      expect(validateAndSanitizeUrl('http://10.0.0.5/secret').isValid).toBe(false);
+      expect(validateAndSanitizeUrl('http://192.168.1.1/router').isValid).toBe(false);
+      expect(validateAndSanitizeUrl('http://172.20.0.1/internal').isValid).toBe(false);
+      expect(validateAndSanitizeUrl('http://169.254.169.254/latest/meta-data').isValid).toBe(false);
+      expect(validateAndSanitizeUrl('http://0x7f000001').isValid).toBe(false);
+    });
+
+    it('blocks invalid protocols and non-web schemes', () => {
+      expect(validateAndSanitizeUrl('file:///etc/passwd').isValid).toBe(false);
+      expect(validateAndSanitizeUrl('javascript:alert(1)').isValid).toBe(false);
+      expect(validateAndSanitizeUrl('ftp://ftp.example.com').isValid).toBe(false);
+    });
+
+    it('extracts and strips HTML content cleanly', () => {
+      const html = `
+        <html>
+          <head><title>Privacy</title><script>alert('xss');</script></head>
+          <body>
+            <nav>Menu Items</nav>
+            <h1>Privacy Policy</h1>
+            <p>We collect <strong>personal information</strong> and &amp; share it with partners.</p>
+            <footer>Footer Links</footer>
+          </body>
+        </html>
+      `;
+      const extracted = extractTextFromHtml(html);
+      expect(extracted).not.toContain('alert');
+      expect(extracted).not.toContain('<nav>');
+      expect(extracted).not.toContain('Menu Items');
+      expect(extracted).not.toContain('Footer Links');
+      expect(extracted).toContain('Privacy Policy');
+      expect(extracted).toContain('We collect personal information and & share it with partners.');
     });
   });
 

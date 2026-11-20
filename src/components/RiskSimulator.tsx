@@ -18,7 +18,6 @@ export function RiskSimulator({
   findings,
   onToggleFinding,
   onResetSimulator,
-  originalScore,
   simulatedScore,
   simulatedSeverity,
   scoreDelta,
@@ -32,14 +31,7 @@ export function RiskSimulator({
   const disabledCount = toggleableItems.filter((f) => f.isSimulatedDisabled).length;
 
   return (
-    <section
-      className="card"
-      style={{
-        marginTop: '1.25rem',
-        borderLeft: '4px solid var(--accent-primary)',
-      }}
-      aria-labelledby="simulator-heading"
-    >
+    <section className="elevated-card" aria-labelledby="simulator-card-title">
       <div
         style={{
           display: 'flex',
@@ -51,10 +43,25 @@ export function RiskSimulator({
         }}
       >
         <div>
-          <h2 id="simulator-heading" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <SlidersIcon size={18} />
-            <span>Interactive Risk & Permission Simulator</span>
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--bg-subtle)',
+                color: 'var(--accent-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <SlidersIcon size={16} />
+            </div>
+            <h2 id="simulator-card-title" style={{ fontSize: '1.0625rem' }}>
+              What If I Turn These Off?
+            </h2>
+          </div>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
             Simulate revoking invasive device permissions or opting out of clauses to preview your risk reduction.
           </p>
@@ -63,23 +70,23 @@ export function RiskSimulator({
         {disabledCount > 0 && (
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className="btn-subtle"
             onClick={onResetSimulator}
-            title="Reset all simulated permission toggles"
+            title="Reset all toggles"
           >
             <RotateCcwIcon size={14} />
-            <span>Reset Simulator</span>
+            <span>Reset Toggles</span>
           </button>
         )}
       </div>
 
-      {/* Simulator Score Metric Banner */}
+      {/* Metric Delta Strip */}
       <div
         style={{
           padding: '0.75rem 1rem',
           backgroundColor: 'var(--bg-subtle)',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border-stone)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-card-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -88,51 +95,52 @@ export function RiskSimulator({
           marginBottom: '1rem',
         }}
       >
-        <div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>
-            Simulated Risk Score
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+            Simulated Score:
           </span>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {simulatedScore}
+          <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            {simulatedScore}
+          </span>
+          <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>/ 100</span>
+
+          {scoreDelta < 0 && (
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: 'var(--risk-low-text)',
+                backgroundColor: 'var(--risk-low-bg)',
+                border: '1px solid var(--risk-low-border)',
+                padding: '0.15rem 0.5rem',
+                borderRadius: 'var(--radius-pill)',
+                marginLeft: '0.25rem',
+              }}
+            >
+              {scoreDelta} pts risk reduction
             </span>
-            <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>/ 100</span>
-            {scoreDelta < 0 && (
-              <span
-                style={{
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                  color: 'var(--risk-safe-text)',
-                  backgroundColor: 'var(--risk-safe-bg)',
-                  padding: '0.125rem 0.375rem',
-                  borderRadius: 'var(--radius-sm)',
-                }}
-              >
-                {scoreDelta} pts risk reduction
-              </span>
-            )}
-          </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span
-            className={`badge-risk ${
-              simulatedSeverity === 'high'
-                ? 'badge-risk-high'
-                : simulatedSeverity === 'medium'
-                ? 'badge-risk-medium'
-                : 'badge-risk-safe'
-            }`}
-          >
-            {simulatedSeverity === 'high' && <AlertTriangleIcon size={14} />}
-            {simulatedSeverity === 'medium' && <AlertCircleIcon size={14} />}
-            {(simulatedSeverity === 'low' || simulatedSeverity === 'safe') && <CheckCircleIcon size={14} />}
-            <span>{simulatedSeverity} Risk</span>
-          </span>
-        </div>
+        <span
+          className={`badge-risk ${
+            simulatedSeverity === 'high'
+              ? 'badge-risk-high'
+              : simulatedSeverity === 'medium'
+              ? 'badge-risk-medium'
+              : 'badge-risk-low'
+          }`}
+        >
+          {simulatedSeverity === 'high' && <AlertTriangleIcon size={12} />}
+          {simulatedSeverity === 'medium' && <AlertCircleIcon size={12} />}
+          {(simulatedSeverity === 'low' || simulatedSeverity === 'safe') && (
+            <CheckCircleIcon size={12} />
+          )}
+          <span>{simulatedSeverity} Risk</span>
+        </span>
       </div>
 
-      {/* Toggles list */}
+      {/* Toggle Rows */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
         {toggleableItems.map((item) => {
           const isOff = !!item.isSimulatedDisabled;
@@ -143,10 +151,10 @@ export function RiskSimulator({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0.625rem 0.75rem',
-                backgroundColor: isOff ? 'var(--risk-safe-bg)' : 'var(--bg-surface)',
-                border: isOff ? '1px solid var(--risk-safe-border)' : '1px solid var(--border-stone)',
-                borderRadius: 'var(--radius-sm)',
+                padding: '0.75rem 1rem',
+                backgroundColor: isOff ? 'var(--risk-low-bg)' : 'var(--bg-surface)',
+                border: isOff ? '1px solid var(--risk-low-border)' : '1px solid var(--border-card)',
+                borderRadius: 'var(--radius-md)',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -158,39 +166,51 @@ export function RiskSimulator({
                   <span
                     style={{
                       fontSize: '0.6875rem',
-                      padding: '0.125rem 0.375rem',
-                      borderRadius: 'var(--radius-sm)',
+                      padding: '0.125rem 0.4rem',
+                      borderRadius: 'var(--radius-pill)',
                       backgroundColor: 'var(--bg-subtle)',
                       color: 'var(--text-secondary)',
-                      border: '1px solid var(--border-stone-subtle)',
+                      border: '1px solid var(--border-card-subtle)',
                     }}
                   >
                     {item.category.replace('_', ' ')}
                   </span>
                 </div>
-                <p style={{ fontSize: '0.75rem', color: isOff ? 'var(--risk-safe-text)' : 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                <p
+                  style={{
+                    fontSize: '0.75rem',
+                    color: isOff ? 'var(--risk-low-text)' : 'var(--text-secondary)',
+                    marginTop: '0.2rem',
+                  }}
+                >
                   {isOff
-                    ? 'Simulated as Denied / Opted-Out: Threat neutralized'
-                    : `Active grant: +${item.weight} risk weight points`}
+                    ? 'Simulated as Denied / Opted-Out: Risk neutralized'
+                    : `Active grant (+${item.weight} pts impact)`}
                 </p>
               </div>
 
               <label
-                htmlFor={`toggle-${item.id}`}
-                className="switch-label"
-                style={{ margin: 0, userSelect: 'none' }}
+                htmlFor={`sim-toggle-${item.id}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.625rem',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  margin: 0,
+                }}
               >
                 <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                  {isOff ? 'Opted Out' : 'Active'}
+                  {isOff ? 'Opted Out' : 'Allowed'}
                 </span>
                 <input
-                  id={`toggle-${item.id}`}
+                  id={`sim-toggle-${item.id}`}
                   type="checkbox"
                   role="switch"
                   aria-checked={!isOff}
                   checked={!isOff}
                   onChange={() => onToggleFinding(item.id)}
-                  className="switch-input"
+                  className="switch-input-tactile"
                   aria-label={`Toggle simulation for ${item.title}`}
                 />
               </label>

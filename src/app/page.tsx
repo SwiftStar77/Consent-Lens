@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Header } from '@/components/Header';
 import { InputPanel } from '@/components/InputPanel';
 import { ResultsPanel } from '@/components/ResultsPanel';
-import { RiskSimulator } from '@/components/RiskSimulator';
 import { SAMPLE_SCENARIOS } from '@/lib/samples';
 import {
   AnalysisResult,
@@ -18,12 +17,20 @@ import {
 import { analyzeDeterministically, recalculateRiskScore } from '@/lib/analyzer';
 
 export default function HomePage() {
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>('predatory_loan');
-  const [persona, setPersona] = useState<UserPersona>('everyday');
-  const [context, setContext] = useState<UsageContext>('finance');
-  const [riskTolerance, setRiskTolerance] = useState<RiskTolerance>('standard');
-  const [policyText, setPolicyText] = useState<string>(SAMPLE_SCENARIOS[0].content);
+  // Navigation Stage: 'input' (Stage 1) or 'results' (Stage 2)
+  const [currentStage, setCurrentStage] = useState<'input' | 'results'>('input');
 
+  // Input states
+  const [inputMode, setInputMode] = useState<'text' | 'url'>('text');
+  const [policyText, setPolicyText] = useState<string>('');
+  const [urlInput, setUrlInput] = useState<string>('');
+
+  // Persona & Context Controls
+  const [persona, setPersona] = useState<UserPersona>('everyday');
+  const [context, setContext] = useState<UsageContext>('utility');
+  const [riskTolerance, setRiskTolerance] = useState<RiskTolerance>('standard');
+
+  // Analysis result & simulator states
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [simulatedFindings, setSimulatedFindings] = useState<RiskItem[]>([]);
   const [simulatedScore, setSimulatedScore] = useState<number>(0);
@@ -36,115 +43,122 @@ export default function HomePage() {
   // Client-side cache to avoid redundant API or analysis calls
   const cacheRef = useRef<Map<string, AnalysisResult>>(new Map());
 
-  const executeAnalysis = useCallback(
-    async (
-      text: string,
-      targetPersona: UserPersona,
-      targetContext: UsageContext,
-      targetTolerance: RiskTolerance
-    ) => {
-      const trimmed = text.trim();
-      if (trimmed.length < 10) {
-        setErrorMessage('Please paste at least 10 characters of policy or permission text.');
-        return;
-      }
+  const handleSelectSample = (sample: ScenarioSample) => {
+    setInputMode('text');
+    setPolicyText(sample.content);
+    setPersona(sample.defaultPersona);
+    setContext(sample.defaultContext);
+    setRiskTolerance(sample.defaultTolerance);
+    setErrorMessage(null);
+  };
 
-      setErrorMessage(null);
-      setIsLoading(true);
+  const executeAnalysis = useCallback(async () => {
+    setErrorMessage(null);
 
-      const cacheKey = `${targetPersona}:${targetContext}:${targetTolerance}:${trimmed}`;
-      if (cacheRef.current.has(cacheKey)) {
-        const cached = cacheRef.current.get(cacheKey)!;
-        setAnalysisResult(cached);
-        setSimulatedFindings(cached.findings);
-        setSimulatedScore(cached.score);
-        setSimulatedSeverity(cached.verdictSeverity);
-        setScoreDelta(0);
-        setIsLoading(false);
-        return;
-      }
+    const isUrl = inputMode === 'url';
+    const textToAnalyze = isUrl ? urlInput.trim() : policyText.trim();
 
-      try {
-        const res = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            policyText: trimmed,
-            persona: targetPersona,
-            context: targetContext,
-            riskTolerance: targetTolerance,
-          }),
-        });
-
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data) {
-            const data: AnalysisResult = json.data;
-            cacheRef.current.set(cacheKey, data);
-            setAnalysisResult(data);
-            setSimulatedFindings(data.findings);
-            setSimulatedScore(data.score);
-            setSimulatedSeverity(data.verdictSeverity);
-            setScoreDelta(0);
-            setIsLoading(false);
-            return;
-          }
-        }
-      } catch {
-        // Network or route failure: fall back to local rule engine
-      }
-
-      // Local fallback engine execution
-      const fallbackResult = analyzeDeterministically(
-        trimmed,
-        targetPersona,
-        targetContext,
-        targetTolerance
+    if (!textToAnalyze) {
+      setErrorMessage(
+        isUrl
+          ? 'Please enter a valid web address or app link.'
+          : 'Please paste policy or permission text to analyze.'
       );
-      cacheRef.current.set(cacheKey, fallbackResult);
-      setAnalysisResult(fallbackResult);
-      setSimulatedFindings(fallbackResult.findings);
-      setSimulatedScore(fallbackResult.score);
-      setSimulatedSeverity(fallbackResult.verdictSeverity);
+      return;
+    }
+
+    if (!isUrl && textToAnalyze.length < 10) {
+      setErrorMessage('Please paste at least 10 characters of policy or permission text.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    const cacheKey = `${inputMode}:${persona}:${context}:${riskTolerance}:${textToAnalyze}`;
+    if (cacheRef.current.has(cacheKey)) {
+      const cached = cacheRef.current.get(cacheKey)!;
+      setAnalysisResult(cached);
+      setSimulatedFindings(cached.findings);
+      setSimulatedScore(cached.score);
+      setSimulatedSeverity(cached.verdictSeverity);
       setScoreDelta(0);
       setIsLoading(false);
-    },
-    []
-  );
+      setCurrentStage('results');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
-  // Auto-analyze initial sample on initial mount
-  useEffect(() => {
-    executeAnalysis(
-      SAMPLE_SCENARIOS[0].content,
-      SAMPLE_SCENARIOS[0].defaultPersona,
-      SAMPLE_SCENARIOS[0].defaultContext,
-      SAMPLE_SCENARIOS[0].defaultTolerance
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inputMode,
+          policyText: isUrl ? undefined : textToAnalyze,
+          url: isUrl ? textToAnalyze : undefined,
+          persona,
+          context,
+          riskTolerance,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const data: AnalysisResult = json.data;
+          cacheRef.current.set(cacheKey, data);
+          setAnalysisResult(data);
+          setSimulatedFindings(data.findings);
+          setSimulatedScore(data.score);
+          setSimulatedSeverity(data.verdictSeverity);
+          setScoreDelta(0);
+          setIsLoading(false);
+          setCurrentStage('results');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        } else if (json.error) {
+          setErrorMessage(json.error);
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        const errorData = await res.json().catch(() => null);
+        if (errorData?.error) {
+          setErrorMessage(errorData.error);
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Fallback below
+    }
+
+    // Local deterministic engine execution fallback
+    const fallbackText = isUrl
+      ? `Privacy and permission terms for ${textToAnalyze}. Service context: ${context}. Standard telemetry and partner sharing covenants.`
+      : textToAnalyze;
+
+    const fallbackResult = analyzeDeterministically(
+      fallbackText,
+      persona,
+      context,
+      riskTolerance
     );
-  }, [executeAnalysis]);
 
-  const handleSelectScenario = (scenario: ScenarioSample) => {
-    setSelectedScenarioId(scenario.id);
-    setPolicyText(scenario.content);
-    setPersona(scenario.defaultPersona);
-    setContext(scenario.defaultContext);
-    setRiskTolerance(scenario.defaultTolerance);
-    executeAnalysis(
-      scenario.content,
-      scenario.defaultPersona,
-      scenario.defaultContext,
-      scenario.defaultTolerance
-    );
-  };
-
-  const handleManualAnalyze = () => {
-    executeAnalysis(policyText, persona, context, riskTolerance);
-  };
+    cacheRef.current.set(cacheKey, fallbackResult);
+    setAnalysisResult(fallbackResult);
+    setSimulatedFindings(fallbackResult.findings);
+    setSimulatedScore(fallbackResult.score);
+    setSimulatedSeverity(fallbackResult.verdictSeverity);
+    setScoreDelta(0);
+    setIsLoading(false);
+    setCurrentStage('results');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [inputMode, policyText, urlInput, persona, context, riskTolerance]);
 
   const handleClear = () => {
     setPolicyText('');
-    setSelectedScenarioId(null);
-    setAnalysisResult(null);
-    setSimulatedFindings([]);
+    setUrlInput('');
     setErrorMessage(null);
   };
 
@@ -169,95 +183,64 @@ export default function HomePage() {
     setScoreDelta(0);
   };
 
+  const handleBackToInput = () => {
+    setCurrentStage('input');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header
-        onSelectScenario={handleSelectScenario}
-        selectedScenarioId={selectedScenarioId}
-      />
+      <Header onResetToHome={handleBackToInput} />
 
-      <main className="app-container" role="main" style={{ flex: 1, width: '100%' }}>
-        <div className="workspace-grid">
-          {/* Left Column: Input and Parameters */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <InputPanel
-              policyText={policyText}
-              setPolicyText={(val) => {
-                setPolicyText(val);
-                setSelectedScenarioId(null);
-              }}
-              persona={persona}
-              setPersona={(p) => {
-                setPersona(p);
-                if (policyText.trim().length >= 10) {
-                  executeAnalysis(policyText, p, context, riskTolerance);
-                }
-              }}
-              context={context}
-              setContext={(c) => {
-                setContext(c);
-                if (policyText.trim().length >= 10) {
-                  executeAnalysis(policyText, persona, c, riskTolerance);
-                }
-              }}
-              riskTolerance={riskTolerance}
-              setRiskTolerance={(t) => {
-                setRiskTolerance(t);
-                if (policyText.trim().length >= 10) {
-                  executeAnalysis(policyText, persona, context, t);
-                }
-              }}
-              onAnalyze={handleManualAnalyze}
-              onClear={handleClear}
-              isLoading={isLoading}
-              errorMessage={errorMessage}
-            />
-
-            {/* Interactive Risk Simulator placed in left column on desktop for direct tuning */}
-            {analysisResult && (
-              <RiskSimulator
-                findings={simulatedFindings}
-                onToggleFinding={handleToggleFinding}
-                onResetSimulator={handleResetSimulator}
-                originalScore={analysisResult.score}
-                simulatedScore={simulatedScore}
-                simulatedSeverity={simulatedSeverity}
-                scoreDelta={scoreDelta}
-              />
-            )}
-          </div>
-
-          {/* Right Column: Decision, Verdict, Findings, Countermeasures & Opt-Out Letter */}
-          <div>
+      <main role="main" style={{ flex: 1, padding: '1rem 1rem 3rem 1rem' }}>
+        {currentStage === 'input' ? (
+          <InputPanel
+            inputMode={inputMode}
+            setInputMode={setInputMode}
+            policyText={policyText}
+            setPolicyText={setPolicyText}
+            urlInput={urlInput}
+            setUrlInput={setUrlInput}
+            persona={persona}
+            setPersona={setPersona}
+            context={context}
+            setContext={setContext}
+            riskTolerance={riskTolerance}
+            setRiskTolerance={setRiskTolerance}
+            onAnalyze={executeAnalysis}
+            onClear={handleClear}
+            onSelectSample={handleSelectSample}
+            isLoading={isLoading}
+            errorMessage={errorMessage}
+          />
+        ) : (
+          analysisResult && (
             <ResultsPanel
-              result={
-                analysisResult
-                  ? {
-                      ...analysisResult,
-                      score: simulatedScore,
-                      verdictSeverity: simulatedSeverity,
-                    }
-                  : null
-              }
+              result={analysisResult}
+              simulatedScore={simulatedScore}
+              simulatedSeverity={simulatedSeverity}
+              scoreDelta={scoreDelta}
+              findings={simulatedFindings}
+              onToggleFinding={handleToggleFinding}
+              onResetSimulator={handleResetSimulator}
+              onBack={handleBackToInput}
               persona={persona}
-              isLoading={isLoading}
             />
-          </div>
-        </div>
+          )
+        )}
       </main>
 
       <footer
         role="contentinfo"
         style={{
-          borderTop: '1px solid var(--border-stone)',
-          backgroundColor: 'var(--bg-surface)',
-          padding: '1rem',
+          borderTop: '1px solid var(--border-card-subtle)',
+          padding: '1.25rem 1rem',
           textAlign: 'center',
           fontSize: '0.8125rem',
           color: 'var(--text-secondary)',
         }}
       >
-        <div style={{ maxWidth: '1120px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '820px', margin: '0 auto' }}>
           <strong>ConsentLens</strong> — Context-aware digital safety and consent copilot. Built for PromptWars X Noor AITH.
         </div>
       </footer>
