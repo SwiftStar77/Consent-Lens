@@ -1,18 +1,13 @@
 'use client';
 
 import React from 'react';
-import { RiskTolerance, UsageContext, UserPersona, ScenarioSample } from '@/lib/types';
-import { SAMPLE_SCENARIOS } from '@/lib/samples';
 import { MAX_POLICY_LENGTH } from '@/lib/sanitize';
 import {
   FileTextIcon,
   GlobeIcon,
   ArrowRightIcon,
   RotateCcwIcon,
-  UserIcon,
-  LayersIcon,
   ShieldIcon,
-  SparklesIcon,
 } from './Icons';
 
 interface InputPanelProps {
@@ -22,15 +17,8 @@ interface InputPanelProps {
   setPolicyText: (val: string) => void;
   urlInput: string;
   setUrlInput: (val: string) => void;
-  persona: UserPersona;
-  setPersona: (p: UserPersona) => void;
-  context: UsageContext;
-  setContext: (c: UsageContext) => void;
-  riskTolerance: RiskTolerance;
-  setRiskTolerance: (t: RiskTolerance) => void;
   onAnalyze: () => void;
   onClear: () => void;
-  onSelectSample: (sample: ScenarioSample) => void;
   isLoading: boolean;
   errorMessage: string | null;
 }
@@ -42,15 +30,8 @@ export function InputPanel({
   setPolicyText,
   urlInput,
   setUrlInput,
-  persona,
-  setPersona,
-  context,
-  setContext,
-  riskTolerance,
-  setRiskTolerance,
   onAnalyze,
   onClear,
-  onSelectSample,
   isLoading,
   errorMessage,
 }: InputPanelProps) {
@@ -81,7 +62,7 @@ export function InputPanel({
           }}
         >
           <ShieldIcon size={14} />
-          <span>Context-Aware Consent Copilot</span>
+          <span>Context-Aware Consent Auditor</span>
         </div>
         <h1 style={{ fontSize: '1.4375rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
           Understand what you&apos;re consenting to.
@@ -118,7 +99,7 @@ export function InputPanel({
         </div>
 
         {/* Input Area */}
-        <div style={{ marginBottom: '1.25rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
           {isTextMode ? (
             <div>
               <div
@@ -185,158 +166,18 @@ export function InputPanel({
           )}
         </div>
 
-        {/* Quick-Start Sample Chips */}
-        <div style={{ marginBottom: '1.5rem' }}>
-          <span
-            style={{
-              display: 'block',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              marginBottom: '0.4rem',
-            }}
-          >
-            Quick-Start Realistic Scenarios:
-          </span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-            {SAMPLE_SCENARIOS.map((sample) => (
-              <button
-                key={sample.id}
-                type="button"
-                className="sample-chip"
-                onClick={() => onSelectSample(sample)}
-                title={sample.description}
-              >
-                <SparklesIcon size={12} />
-                <span>
-                  {sample.id === 'predatory_loan'
-                    ? 'Try: Instant-Loan App'
-                    : sample.id === 'saas_trial'
-                    ? 'Try: SaaS Free Trial'
-                    : 'Try: Safe Offline Tool'}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Context Selectors as Clean Horizontal Tactile Pills */}
-        <div className="subtle-panel" style={{ marginBottom: '1.5rem' }}>
-          {/* Who are you? */}
-          <div className="pill-selector-group">
-            <label
-              style={{
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
-            >
-              <UserIcon size={14} />
-              <span>Who are you?</span>
-            </label>
-            <div className="pill-row" role="radiogroup" aria-label="User persona selector">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={persona === 'everyday'}
-                className={`context-pill ${persona === 'everyday' ? 'active' : ''}`}
-                onClick={() => setPersona('everyday')}
-              >
-                <span>Everyday User</span>
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={persona === 'accessibility'}
-                className={`context-pill ${persona === 'accessibility' ? 'active' : ''}`}
-                onClick={() => setPersona('accessibility')}
-              >
-                <span>Plain-Language Mode</span>
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={persona === 'privacy_pro'}
-                className={`context-pill ${persona === 'privacy_pro' ? 'active' : ''}`}
-                onClick={() => setPersona('privacy_pro')}
-              >
-                <span>Privacy-Strict</span>
-              </button>
-            </div>
-          </div>
-
-          {/* What is this for? */}
-          <div className="pill-selector-group" style={{ marginBottom: 0 }}>
-            <label
-              style={{
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
-            >
-              <LayersIcon size={14} />
-              <span>What is this for?</span>
-            </label>
-            <div className="pill-row" role="radiogroup" aria-label="Usage context selector">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={context === 'utility'}
-                className={`context-pill ${context === 'utility' ? 'active' : ''}`}
-                onClick={() => setContext('utility')}
-              >
-                <span>Simple Utility</span>
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={context === 'finance'}
-                className={`context-pill ${context === 'finance' ? 'active' : ''}`}
-                onClick={() => setContext('finance')}
-              >
-                <span>Finance / Loan</span>
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={context === 'saas'}
-                className={`context-pill ${context === 'saas' ? 'active' : ''}`}
-                onClick={() => setContext('saas')}
-              >
-                <span>SaaS / AI Tool</span>
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={context === 'health'}
-                className={`context-pill ${context === 'health' ? 'active' : ''}`}
-                onClick={() => setContext('health')}
-              >
-                <span>Health / Fitness</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* Error notification if any */}
         {errorMessage && (
           <div
             role="alert"
             style={{
-              padding: '0.625rem 0.875rem',
+              padding: '0.75rem 1rem',
               backgroundColor: 'var(--risk-high-bg)',
               color: 'var(--risk-high-text)',
               border: '1px solid var(--risk-high-border)',
               borderRadius: 'var(--radius-md)',
               fontSize: '0.8125rem',
+              lineHeight: 1.5,
               marginBottom: '1.25rem',
             }}
           >

@@ -105,15 +105,15 @@ export function ResultsPanel({
         </button>
 
         <span className="engine-pill">
-          {result.engineUsed === 'live_ai' ? (
+          {result.engineUsed === 'live_ai' || result.engineUsed === 'Gemini AI' ? (
             <>
               <SparklesIcon size={13} />
-              <span>Analysis Engine: Live AI</span>
+              <span>Analysis Engine: Gemini AI</span>
             </>
           ) : (
             <>
               <CpuIcon size={13} />
-              <span>Analysis Engine: Local Rule Engine</span>
+              <span>Analysis Engine: Deep Rule Engine</span>
             </>
           )}
         </span>

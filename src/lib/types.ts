@@ -35,7 +35,7 @@ export interface AnalysisResult {
   permissionAnomalies: string[];
   countermeasures: string[];
   optOutDraft: string;
-  engineUsed: 'live_ai' | 'local_rule_engine';
+  engineUsed: 'Gemini AI' | 'Deep Rule Engine (API Limit Fallback)' | 'live_ai' | 'local_rule_engine' | string;
   analyzedAt: string;
 }
 

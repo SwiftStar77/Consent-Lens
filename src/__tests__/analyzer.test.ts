@@ -4,6 +4,12 @@ import {
   calculateScoreFromFindings,
   recalculateRiskScore,
 } from '../lib/analyzer';
+import {
+  analyzeDeeply,
+  isNegatedClause,
+  splitIntoClauses,
+  DEEP_RULES,
+} from '../lib/deepAnalyzer';
 import { SAMPLE_SCENARIOS } from '../lib/samples';
 import {
   sanitizeInput,
@@ -357,6 +363,116 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
       expect(validateAnalysisResult(null)).toBe(false);
       expect(validateAnalysisResult({ score: 120 })).toBe(false);
       expect(validateAnalysisResult({ score: -5 })).toBe(false);
+    });
+  });
+
+  describe('Deep Clause & Permission Analyzer (Zero-Hallucination Fallback Engine)', () => {
+    it('covers all 5 threat categories with exact sentence-level matchedExcerpt grounding', () => {
+      const comprehensivePredatoryText = `
+        1. DATA HARVESTING: The application requires READ_CONTACTS, READ_SMS, and ACCESS_FINE_LOCATION.
+        We continuously record audio from the microphone in the background.
+        We log all keystrokes and typing patterns into input fields.
+        We collect biometric data including facial geometry and face prints.
+        We track your hardware serial number, IMEI, and query_all_packages installed on the device.
+        We record call logs and phone call history of all incoming and outgoing calls.
+
+        2. SHARING: We may sell personal data to commercial partners.
+        We share your data with unnamed marketing partners for promotional purposes.
+        We disclose account records to data brokers and debt collection agencies.
+        We track your activity across other websites for cross-context behavioral advertising.
+        Third party SDKs and trackers collect information directly through our app.
+
+        3. FINANCIAL TRAPS: Your free trial will automatically renew and convert into a paid subscription without prior notice.
+        All fees are non-refundable and payments are final.
+        You grant us an auto-debit ACH mandate authorizing unilateral recurring bank withdrawals.
+        We reserve the right to modify our pricing at sole discretion without notice.
+        Cancellations require at least 30 days advance notice by certified mail.
+
+        4. LEGAL RIGHTS: All disputes shall be resolved exclusively through confidential binding arbitration.
+        You agree to a class action waiver and cannot join representative actions.
+        You grant us a perpetual, irrevocable, royalty-free worldwide license over all uploads and content.
+        We use your inputs and prompts to train artificial intelligence and machine learning models.
+        We may update terms at any time without notice and your continued use constitutes acceptance.
+
+        5. RETENTION & SECURITY: User records are retained indefinitely for as long as we deem necessary.
+        We will continue to keep your records after account deletion.
+        Data is transmitted unencrypted and security is provided "as is".
+        We may disclose information to government officials without a warrant upon informal request.
+      `;
+
+      const result = analyzeDeeply(comprehensivePredatoryText, 'privacy_pro', 'finance', 'strict');
+
+      expect(result.score).toBeGreaterThanOrEqual(85);
+      expect(result.verdictSeverity).toBe('high');
+      expect(result.engineUsed).toBe('Deep Rule Engine');
+      expect(validateAnalysisResult(result)).toBe(true);
+
+      // Verify every single finding has non-empty matchedExcerpt grounded in the source
+      expect(result.findings.length).toBeGreaterThanOrEqual(15);
+      for (const finding of result.findings) {
+        expect(finding.matchedExcerpt).toBeDefined();
+        expect(finding.matchedExcerpt.length).toBeGreaterThan(5);
+        expect(finding.originalClause).toBe(finding.matchedExcerpt);
+      }
+
+      // Verify opt-out draft and countermeasures reference specific threats
+      expect(result.optOutDraft).toContain('FORMAL NOTICE');
+      expect(result.countermeasures.length).toBeGreaterThan(0);
+    });
+
+    it('correctly returns safe score (0) and zero findings for clean, privacy-respecting text', () => {
+      const cleanText = `
+        Privacy Policy for Local Notepad.
+        All notes remain solely on your device.
+        We do not collect any personal data or usage analytics.
+        We do not sell, rent, or share any information with third parties.
+        No internet connection is required or used by the app.
+        For questions, contact support@notepad.example.
+      `;
+
+      const result = analyzeDeeply(cleanText, 'everyday', 'utility', 'standard');
+
+      expect(result.score).toBe(0);
+      expect(result.verdictSeverity).toBe('safe');
+      expect(result.findings.length).toBe(0);
+      expect(result.executiveVerdict).toContain('No major red flags were found');
+    });
+
+    it('recognizes explicit negations and does not flag clauses when the policy says "do not" or "never"', () => {
+      const negatedText = `
+        Security Commitment:
+        We do not sell or rent personal information to anyone.
+        We will not share your data with marketing affiliates.
+        We never record audio from your microphone or access contacts.
+        We do not use your documents to train AI models.
+      `;
+
+      expect(isNegatedClause('We do not sell or rent personal information to anyone.')).toBe(true);
+      expect(isNegatedClause('We never record audio from your microphone.')).toBe(true);
+      expect(isNegatedClause('We do not use your documents to train AI models.')).toBe(true);
+
+      const result = analyzeDeeply(negatedText, 'everyday', 'utility', 'standard');
+      expect(result.findings.length).toBe(0);
+      expect(result.score).toBe(0);
+    });
+
+    it('recalculates score dynamically when user toggles findings in simulator', () => {
+      const sampleText = `
+        The app requires READ_CONTACTS.
+        We may sell personal data to data brokers.
+        Your subscription will automatically renew without notice.
+      `;
+
+      const initial = analyzeDeeply(sampleText, 'everyday', 'utility', 'standard');
+      expect(initial.findings.length).toBeGreaterThanOrEqual(3);
+      const initialScore = initial.score;
+
+      // Toggle first finding off
+      const toggled = initial.findings.map((f, idx) => (idx === 0 ? { ...f, isSimulatedDisabled: true } : f));
+      const recalc = recalculateRiskScore(toggled, 'everyday', 'utility', 'standard');
+
+      expect(recalc.recalculatedScore).toBeLessThan(initialScore);
+      expect(recalc.scoreDelta).toBeLessThan(0);
     });
   });
 });

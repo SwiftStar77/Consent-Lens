@@ -4,17 +4,16 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Header } from '@/components/Header';
 import { InputPanel } from '@/components/InputPanel';
 import { ResultsPanel } from '@/components/ResultsPanel';
-import { SAMPLE_SCENARIOS } from '@/lib/samples';
 import {
   AnalysisResult,
   RiskItem,
   RiskSeverity,
   RiskTolerance,
-  ScenarioSample,
   UsageContext,
   UserPersona,
 } from '@/lib/types';
-import { analyzeDeterministically, recalculateRiskScore } from '@/lib/analyzer';
+import { recalculateRiskScore } from '@/lib/analyzer';
+import { analyzeDeeply } from '@/lib/deepAnalyzer';
 
 export default function HomePage() {
   // Navigation Stage: 'input' (Stage 1) or 'results' (Stage 2)
@@ -25,10 +24,10 @@ export default function HomePage() {
   const [policyText, setPolicyText] = useState<string>('');
   const [urlInput, setUrlInput] = useState<string>('');
 
-  // Persona & Context Controls
-  const [persona, setPersona] = useState<UserPersona>('everyday');
-  const [context, setContext] = useState<UsageContext>('utility');
-  const [riskTolerance, setRiskTolerance] = useState<RiskTolerance>('standard');
+  // Default Persona & Context Controls (standardized internally)
+  const [persona] = useState<UserPersona>('everyday');
+  const [context] = useState<UsageContext>('utility');
+  const [riskTolerance] = useState<RiskTolerance>('standard');
 
   // Analysis result & simulator states
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -42,15 +41,6 @@ export default function HomePage() {
 
   // Client-side cache to avoid redundant API or analysis calls
   const cacheRef = useRef<Map<string, AnalysisResult>>(new Map());
-
-  const handleSelectSample = (sample: ScenarioSample) => {
-    setInputMode('text');
-    setPolicyText(sample.content);
-    setPersona(sample.defaultPersona);
-    setContext(sample.defaultContext);
-    setRiskTolerance(sample.defaultTolerance);
-    setErrorMessage(null);
-  };
 
   const executeAnalysis = useCallback(async () => {
     setErrorMessage(null);
@@ -117,43 +107,43 @@ export default function HomePage() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         } else if (json.error) {
-          setErrorMessage(json.error);
+          const fullErr = json.hint ? `${json.error} ${json.hint}` : json.error;
+          setErrorMessage(fullErr);
           setIsLoading(false);
           return;
         }
       } else {
         const errorData = await res.json().catch(() => null);
         if (errorData?.error) {
-          setErrorMessage(errorData.error);
+          const fullErr = errorData.hint ? `${errorData.error} ${errorData.hint}` : errorData.error;
+          setErrorMessage(fullErr);
           setIsLoading(false);
           return;
         }
       }
     } catch {
-      // Fallback below
+      // Offline or network error: fall back to Deep Local Clause Analyzer
     }
 
-    // Local deterministic engine execution fallback
-    const fallbackText = isUrl
-      ? `Privacy and permission terms for ${textToAnalyze}. Service context: ${context}. Standard telemetry and partner sharing covenants.`
-      : textToAnalyze;
+    // Client-side fallback via deep analyzer
+    if (!isUrl && textToAnalyze.length >= 10) {
+      const fallbackResult = analyzeDeeply(textToAnalyze, persona, context, riskTolerance);
+      cacheRef.current.set(cacheKey, fallbackResult);
+      setAnalysisResult(fallbackResult);
+      setSimulatedFindings(fallbackResult.findings);
+      setSimulatedScore(fallbackResult.score);
+      setSimulatedSeverity(fallbackResult.verdictSeverity);
+      setScoreDelta(0);
+      setIsLoading(false);
+      setCurrentStage('results');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
-    const fallbackResult = analyzeDeterministically(
-      fallbackText,
-      persona,
-      context,
-      riskTolerance
+    setErrorMessage(
+      'Unable to connect to the analysis service. Please verify your connection or paste the policy text directly.'
     );
-
-    cacheRef.current.set(cacheKey, fallbackResult);
-    setAnalysisResult(fallbackResult);
-    setSimulatedFindings(fallbackResult.findings);
-    setSimulatedScore(fallbackResult.score);
-    setSimulatedSeverity(fallbackResult.verdictSeverity);
-    setScoreDelta(0);
     setIsLoading(false);
-    setCurrentStage('results');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [inputMode, policyText, urlInput, persona, context, riskTolerance]);
 
   const handleClear = () => {
@@ -201,15 +191,8 @@ export default function HomePage() {
             setPolicyText={setPolicyText}
             urlInput={urlInput}
             setUrlInput={setUrlInput}
-            persona={persona}
-            setPersona={setPersona}
-            context={context}
-            setContext={setContext}
-            riskTolerance={riskTolerance}
-            setRiskTolerance={setRiskTolerance}
             onAnalyze={executeAnalysis}
             onClear={handleClear}
-            onSelectSample={handleSelectSample}
             isLoading={isLoading}
             errorMessage={errorMessage}
           />
@@ -241,7 +224,7 @@ export default function HomePage() {
         }}
       >
         <div style={{ maxWidth: '820px', margin: '0 auto' }}>
-          <strong>ConsentLens</strong> — Context-aware digital safety and consent copilot. Built for PromptWars X Noor AITH.
+          <strong>ConsentLens</strong> — Context-aware digital safety and consent auditor. Built for PromptWars X Noor AITH.
         </div>
       </footer>
     </div>
