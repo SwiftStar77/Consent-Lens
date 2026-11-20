@@ -21,7 +21,7 @@ export function Header({ onResetToHome }: HeaderProps) {
       role="banner"
       style={{
         backgroundColor: 'transparent',
-        padding: '1.5rem 1rem 0.5rem 1rem',
+        padding: '1.75rem 1rem 0.5rem 1rem',
       }}
     >
       <div
@@ -40,54 +40,65 @@ export function Header({ onResetToHome }: HeaderProps) {
           onClick={onResetToHome}
           style={{
             display: 'inline-flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            gap: '0.625rem',
+            justifyContent: 'center',
+            gap: '0.35rem',
             background: 'none',
             border: 'none',
             cursor: onResetToHome ? 'pointer' : 'default',
-            padding: '0.35rem 0.75rem',
+            padding: '0.5rem 1rem',
             borderRadius: 'var(--radius-md)',
-            textAlign: 'left',
+            textAlign: 'center',
           }}
           title="ConsentLens Home"
         >
-          {/* Centered App Logo Badge */}
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              backgroundColor: 'var(--accent-tint)',
-              color: 'var(--accent-primary)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--accent-tint-border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: 'var(--shadow-subtle)',
-              flexShrink: 0,
-            }}
-          >
-            <ShieldIcon size={20} />
-          </div>
+          {/* Centered App Logo & Title */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.625rem' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                backgroundColor: 'var(--accent-tint)',
+                color: 'var(--accent-primary)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--accent-tint-border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: 'var(--shadow-subtle)',
+                flexShrink: 0,
+              }}
+            >
+              <ShieldIcon size={22} />
+            </div>
 
-          {/* App Title & Subtitle */}
-          <div>
             <span
               style={{
-                fontSize: '1.25rem',
+                fontSize: '1.5rem',
                 fontWeight: 700,
                 color: 'var(--text-primary)',
-                letterSpacing: '-0.02em',
+                letterSpacing: '-0.025em',
                 lineHeight: 1.2,
-                display: 'block',
+                display: 'inline-block',
+                textAlign: 'center',
               }}
             >
               ConsentLens
             </span>
-            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Context-aware consent & dark-pattern auditor
-            </p>
           </div>
+
+          {/* Subtitle center aligned */}
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.8125rem',
+              color: 'var(--text-secondary)',
+              textAlign: 'center',
+            }}
+          >
+            Context-aware consent & dark-pattern auditor
+          </p>
         </button>
       </div>
     </header>
