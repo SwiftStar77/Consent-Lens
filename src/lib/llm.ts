@@ -61,30 +61,51 @@ export function condenseForPrompt(text: string, maxChars: number = 18000): strin
 }
 
 /**
+ * Normalizes text for grounding comparisons by standardizing quotation marks,
+ * apostrophes, dashes, and collapsing whitespace.
+ */
+function normalizeForGrounding(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Verifies that each finding produced by the LLM is genuinely grounded in the source text.
- * Strictly drops any hallucinated findings that cannot be corroborated in the source agreement.
+ * Strictly drops any hallucinated findings that cannot be corroborated in the source agreement,
+ * while allowing for minor OCR, quote style, or whitespace variations.
  *
  * @param findings - Candidate findings returned by LLM
  * @param policyText - Actual input text analyzed
  * @returns Verified subset of findings
  */
 export function verifyFindingsGrounding(findings: RiskItem[], policyText: string): RiskItem[] {
-  const normalizedSource = policyText.toLowerCase().replace(/\s+/g, ' ');
+  if (!Array.isArray(findings)) return [];
+  const normalizedSource = normalizeForGrounding(policyText);
+  const sourceAlphaOnly = normalizedSource.replace(/[^\w\s]/g, ' ');
 
   return findings.filter((f) => {
-    const excerpt = (f.matchedExcerpt || f.originalClause || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const rawExcerpt = f.matchedExcerpt || f.originalClause || '';
+    const excerpt = normalizeForGrounding(rawExcerpt);
     if (!excerpt || excerpt.length < 4) return false;
 
     // Direct verbatim substring match
     if (normalizedSource.includes(excerpt)) return true;
 
-    // 3-word sliding window match (protects against minor OCR or whitespace discrepancies)
-    const words = excerpt.split(/\s+/).filter((w) => w.length > 3);
+    // Token-based matching: punctuation-agnostic sliding window
+    const words = excerpt.replace(/[^\w\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
     if (words.length >= 3) {
       for (let i = 0; i <= words.length - 3; i++) {
         const subphrase = `${words[i]} ${words[i + 1]} ${words[i + 2]}`;
-        if (normalizedSource.includes(subphrase)) return true;
+        if (sourceAlphaOnly.includes(subphrase)) return true;
       }
+    } else if (words.length > 0) {
+      const subphrase = words.join(' ');
+      if (sourceAlphaOnly.includes(subphrase)) return true;
     }
 
     return false;

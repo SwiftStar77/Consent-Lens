@@ -25,6 +25,7 @@ import {
   isValidTolerance,
   RiskItem,
 } from '../lib/types';
+import { verifyFindingsGrounding } from '../lib/llm';
 
 describe('ConsentLens Heuristic Analyzer Engine', () => {
   const predatoryLoanSample = SAMPLE_SCENARIOS[0].content;
@@ -473,6 +474,34 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
 
       expect(recalc.recalculatedScore).toBeLessThan(initialScore);
       expect(recalc.scoreDelta).toBeLessThan(0);
+    });
+
+    it('verifies grounding normalization with smart quotes, dashes, and case variations', () => {
+      const source =
+        'We value the trust you place in us. That’s why we insist upon the highest standards for secure transactions—and customer privacy.';
+
+      const finding: RiskItem = {
+        id: 'test_1',
+        title: 'Trust Statement',
+        description: 'Test description',
+        category: 'data_collection',
+        severity: 'low',
+        matchedExcerpt: "That's why we insist upon the highest standards for secure transactions - and customer privacy",
+        originalClause: "That's why we insist upon the highest standards for secure transactions - and customer privacy",
+        harm: 'None',
+        plainLanguageNote: 'Note',
+        isToggleable: false,
+        weight: 10,
+      };
+
+      const verified = verifyFindingsGrounding([finding], source);
+      expect(verified.length).toBe(1);
+    });
+
+    it('decodes decimal and hex entities and entity quotes in extractTextFromHtml', () => {
+      const html = '<p>That&#x27;s why &amp; &#39;we&#39; care &copy; 2026</p>';
+      const extracted = extractTextFromHtml(html);
+      expect(extracted).toContain("That's why & 'we' care © 2026");
     });
   });
 });

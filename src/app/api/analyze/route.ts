@@ -36,132 +36,276 @@ const CACHE_TTL_MS = 1000 * 60 * 60 * 4; // 4 hours TTL
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-/** Minimum extracted text characters before we consider a fetch successful */
+/** Minimum extracted text characters before we consider a page fetch viable */
 const MIN_FETCHED_CHARS = 250;
 
-/** Keywords that indicate a URL path is already a policy/terms/legal page */
-const POLICY_PATH_KEYWORDS = ['privacy', 'terms', 'cookie', 'legal', 'policy', 'gdpr', 'ccpa', 'consent'];
+/** Policy signals to check whether extracted text is a substantive privacy/terms document */
+const POLICY_SIGNALS = [
+  'personal data',
+  'information we collect',
+  'how we use',
+  'third parties',
+  'third-party',
+  'cookies',
+  'your rights',
+  'opt-out',
+  'data retention',
+  'privacy policy',
+  'information collection',
+  'security of your',
+  'disclosure of',
+  'consent',
+  'terms of service',
+  'governing law',
+];
 
 /**
- * Checks if a URL path already points to a privacy/terms page.
- *
- * @param urlStr - Target URL
- * @returns boolean indicating if the path looks like a policy page
+ * Counts the presence of substantive policy indicators in text.
  */
-function isLikelyPolicyUrl(urlStr: string): boolean {
-  try {
-    const u = new URL(urlStr);
-    const path = (u.pathname + u.search).toLowerCase();
-    return POLICY_PATH_KEYWORDS.some((kw) => path.includes(kw));
-  } catch {
-    return false;
+function countPolicySignals(text: string): number {
+  const lower = text.toLowerCase();
+  let count = 0;
+  for (const sig of POLICY_SIGNALS) {
+    if (lower.includes(sig)) count++;
   }
+  return count;
 }
 
 /**
- * Scans raw HTML to discover privacy policy and terms of service links on homepages.
+ * Scans raw HTML to discover the highest-quality privacy policy or terms link.
+ * Inspects href, aria-label, title, and link text, skipping self-links.
  *
- * @param html - Raw webpage HTML string
- * @param baseUrl - Base URL for resolving relative links
- * @returns Absolute URL of discovered policy page, or null
+ * @param html - Raw webpage HTML
+ * @param currentUrl - The current URL (after any redirects) to resolve relative links against
+ * @returns Object with discovered URL and confidence score
  */
-function findPrivacyLink(html: string, baseUrl: string): string | null {
-  const anchorRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  const policyTerms = ['privacy', 'terms', 'cookie', 'legal', 'policy'];
-
+function findBestPolicyLink(
+  html: string,
+  currentUrl: string
+): { link: string | null; score: number } {
+  const anchorRegex = /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*?)>([\s\S]*?)<\/a>/gi;
   let match: RegExpExecArray | null;
-  let bestHref: string | null = null;
+  let bestLink: string | null = null;
+  let bestScore = 0;
+
+  const currentNormalized = currentUrl.replace(/\/+$/, '').toLowerCase();
 
   while ((match = anchorRegex.exec(html)) !== null) {
-    const href = match[1];
-    const linkText = match[2].replace(/<[^>]+>/g, '').trim().toLowerCase();
-    const hrefLower = href.toLowerCase();
+    const preAttr = match[1];
+    const rawHref = match[2].trim();
+    const postAttr = match[3];
+    const fullAttrs = `${preAttr} ${postAttr}`;
 
-    if (policyTerms.some((kw) => linkText.includes(kw) || hrefLower.includes(kw))) {
-      try {
-        const absolute = new URL(href, baseUrl).toString();
-        // Strongly prefer privacy-specific links over generic terms
-        if (hrefLower.includes('privacy') || linkText.includes('privacy')) {
-          return absolute;
-        }
-        if (!bestHref) {
-          bestHref = absolute;
-        }
-      } catch {
-        // Invalid or unparseable href, skip
+    if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('javascript:')) continue;
+
+    const ariaLabelMatch = fullAttrs.match(/aria-label=["']([^"']+)["']/i);
+    const ariaLabel = ariaLabelMatch ? ariaLabelMatch[1].toLowerCase() : '';
+    const titleMatch = fullAttrs.match(/title=["']([^"']+)["']/i);
+    const title = titleMatch ? titleMatch[1].toLowerCase() : '';
+
+    const linkText = match[4].replace(/<[^>]+>/g, ' ').toLowerCase().trim();
+    const combinedDesc = `${linkText} ${ariaLabel} ${title}`.trim();
+    const hrefLower = rawHref.toLowerCase();
+
+    try {
+      const resolved = new URL(rawHref, currentUrl).toString();
+      const resolvedNormalized = resolved.replace(/\/+$/, '').toLowerCase();
+
+      // Skip self-referencing links
+      if (resolvedNormalized === currentNormalized) continue;
+
+      let score = 0;
+
+      // Score based on URL path specificity
+      if (
+        hrefLower.includes('/help/privacy-policy') ||
+        hrefLower.includes('/legal/privacy-policy') ||
+        hrefLower.includes('/privacy-policy') ||
+        hrefLower.includes('/privacy_policy')
+      ) {
+        score += 150;
+      } else if (hrefLower.includes('/privacy')) {
+        score += 80;
+      } else if (hrefLower.includes('/terms') || hrefLower.includes('/legal')) {
+        score += 40;
       }
+
+      // Score based on descriptive text and accessibility labels
+      if (
+        combinedDesc.includes('privacy policy') ||
+        combinedDesc.includes('privacy notice') ||
+        combinedDesc.includes('our privacy policy')
+      ) {
+        score += 120;
+      } else if (
+        combinedDesc.includes('personal data') ||
+        combinedDesc.includes('how we collect') ||
+        combinedDesc.includes('privacy statement')
+      ) {
+        score += 100;
+      } else if (combinedDesc.includes('privacy')) {
+        score += 60;
+      } else if (
+        combinedDesc.includes('terms of service') ||
+        combinedDesc.includes('terms of use') ||
+        combinedDesc.includes('terms & conditions')
+      ) {
+        score += 50;
+      } else if (combinedDesc.includes('terms') || combinedDesc.includes('legal')) {
+        score += 25;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestLink = resolved;
+      }
+    } catch {
+      // Ignore unparseable URLs
     }
   }
 
-  return bestHref;
+  return { link: bestLink, score: bestScore };
 }
 
 /**
- * Fetches a URL with realistic browser headers and extracts readable text.
- *
- * @param url - Validated and sanitized HTTP/HTTPS target
- * @returns Object with extracted text, status code, and blocked flag
+ * Fetches a single URL with realistic browser headers and returns clean text and HTML.
  */
-async function fetchPolicyText(
+async function fetchSingleUrl(
   url: string
-): Promise<{ text: string; status: number; blocked: boolean; blockedReason?: string }> {
-  let rawHtml = '';
-  let httpStatus = 0;
-
+): Promise<{ ok: boolean; status: number; finalUrl: string; text: string; rawHtml: string; error?: string }> {
   try {
     const res = await fetch(url, {
       headers: {
         'User-Agent': BROWSER_UA,
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
         'Cache-Control': 'no-cache',
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(9000),
     });
 
-    httpStatus = res.status;
-
+    const finalUrl = res.url || url;
     if (!res.ok) {
-      return {
-        text: '',
-        status: httpStatus,
-        blocked: true,
-        blockedReason: `The website returned HTTP ${httpStatus} and blocked automated reading.`,
-      };
+      return { ok: false, status: res.status, finalUrl, text: '', rawHtml: '' };
     }
 
-    rawHtml = await res.text();
+    const rawHtml = await res.text();
+    const text = extractTextFromHtml(rawHtml);
+    return { ok: true, status: res.status, finalUrl, text, rawHtml };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('timeout') || msg.includes('abort') || msg.includes('TimeoutError')) {
+    return { ok: false, status: 0, finalUrl: url, text: '', rawHtml: '', error: msg };
+  }
+}
+
+/**
+ * Resolves and extracts the full privacy policy document from a given web link.
+ * Handles homepages, navigation hubs (e.g. /info/privacy), redirects, and SPA fallback probing.
+ *
+ * @param targetUrl - Validated target web link
+ * @returns Resolved policy text and source URL, or error details
+ */
+async function resolvePolicyFromUrl(targetUrl: string): Promise<{
+  text: string;
+  resolvedUrl: string;
+  blocked: boolean;
+  blockedReason?: string;
+}> {
+  // Step 1: Initial fetch of the user-provided URL
+  let current = await fetchSingleUrl(targetUrl);
+
+  if (!current.ok) {
+    if (current.status === 403 || current.status === 401 || current.status === 429) {
       return {
         text: '',
-        status: 0,
+        resolvedUrl: current.finalUrl,
         blocked: true,
-        blockedReason: 'The request timed out — the website may be blocking automated access.',
+        blockedReason: `The website returned HTTP ${current.status} and blocked automated reading.`,
       };
     }
+    const isTimeout = current.error?.toLowerCase().includes('timeout') || current.error?.toLowerCase().includes('abort');
     return {
       text: '',
-      status: 0,
+      resolvedUrl: current.finalUrl,
       blocked: true,
-      blockedReason: 'Could not connect to the website. It may be down or blocking automated access.',
+      blockedReason: isTimeout
+        ? 'The request timed out — the website may be blocking automated access.'
+        : 'Could not connect to the website. It may be down or blocking automated access.',
     };
   }
 
-  const extracted = extractTextFromHtml(rawHtml);
+  let signals = countPolicySignals(current.text);
 
-  if (extracted.length < MIN_FETCHED_CHARS) {
+  // If initial URL already has strong policy indicators and substantial text, use it directly!
+  if (signals >= 6 && current.text.length >= 4000) {
+    return { text: current.text, resolvedUrl: current.finalUrl, blocked: false };
+  }
+
+  // Step 2: Multi-hop discovery (up to 2 hops for directory/hub pages like theguardian.com/info/privacy)
+  for (let hop = 1; hop <= 2; hop++) {
+    const { link, score } = findBestPolicyLink(current.rawHtml, current.finalUrl);
+    if (!link || link === current.finalUrl || score < 50) {
+      break;
+    }
+
+    const nextFetch = await fetchSingleUrl(link);
+    if (nextFetch.ok && nextFetch.text.length >= 250) {
+      const nextSignals = countPolicySignals(nextFetch.text);
+      current = nextFetch;
+      signals = nextSignals;
+      // If we reached substantive policy document, stop traversing
+      if (nextSignals >= 4 && nextFetch.text.length >= 2500) {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+
+  // Step 3: SPA / client-rendered fallback probing
+  if (current.text.length < 800 || signals < 2) {
+    try {
+      const parsedUrl = new URL(targetUrl);
+      const host = parsedUrl.hostname;
+      const parts = host.split('.');
+      const rootDomain = parts.length > 2 ? parts.slice(-2).join('.') : host;
+
+      const fallbackPaths = [
+        `https://www.${rootDomain}/legal/privacy-policy`,
+        `https://www.${rootDomain}/privacy-policy`,
+        `https://www.${rootDomain}/privacy`,
+        `https://${rootDomain}/privacy-policy`,
+        `https://${rootDomain}/privacy`,
+        `https://${rootDomain}/legal/privacy-policy`,
+      ];
+
+      for (const fb of fallbackPaths) {
+        if (fb === current.finalUrl) continue;
+        const probe = await fetchSingleUrl(fb);
+        if (probe.ok && probe.text.length >= 1000) {
+          const probeSignals = countPolicySignals(probe.text);
+          if (probeSignals >= 3) {
+            return { text: probe.text, resolvedUrl: probe.finalUrl, blocked: false };
+          }
+        }
+      }
+    } catch {
+      // Ignore fallback errors
+    }
+  }
+
+  if (current.text.length < MIN_FETCHED_CHARS) {
     return {
-      text: extracted,
-      status: httpStatus,
-      blocked: false,
+      text: current.text,
+      resolvedUrl: current.finalUrl,
+      blocked: true,
+      blockedReason:
+        'The website returned very little readable text — it may require JavaScript, login, or block automated reading.',
     };
   }
 
-  return { text: extracted, status: httpStatus, blocked: false };
+  return { text: current.text, resolvedUrl: current.finalUrl, blocked: false };
 }
 
 /**
@@ -169,10 +313,10 @@ async function fetchPolicyText(
  *
  * Orchestrates policy text analysis:
  * 1. Validates inputs, mode, and parameters
- * 2. Fetches and discovers policy text if URL mode is requested (with SSRF defense)
+ * 2. Fetches and discovers policy text if URL mode is requested (with SSRF defense & multi-hop crawler)
  * 3. Checks memory cache
- * 4. Attempts live Gemini analysis (primary: gemini-3.5-flash-lite, fallback: gemini-3.8-flash)
- * 5. Seamlessly executes Deep Sentence-Level Rule Engine if API limits are hit or key is absent
+ * 4. Prioritizes live Gemini AI analysis (primary: gemini-3.5-flash-lite, fallback: gemini-3.8-flash)
+ * 5. Uses Deep Local Clause & Permission Analyzer ONLY when Gemini limits run out or fail
  */
 export async function POST(req: NextRequest) {
   try {
@@ -185,7 +329,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Default persona, context, and risk tolerance if omitted
     const persona: UserPersona = isValidPersona(body.persona) ? body.persona : 'everyday';
     const context: UsageContext = isValidContext(body.context) ? body.context : 'utility';
     const riskTolerance: RiskTolerance = isValidTolerance(body.riskTolerance)
@@ -207,62 +350,24 @@ export async function POST(req: NextRequest) {
       }
 
       const targetUrl = urlValidation.normalizedUrl;
-      resolvedSourceUrl = targetUrl;
+      const crawlResult = await resolvePolicyFromUrl(targetUrl);
+      resolvedSourceUrl = crawlResult.resolvedUrl || targetUrl;
 
-      // Step 1: Initial page fetch
-      let fetchResult = await fetchPolicyText(targetUrl);
-
-      if (fetchResult.blocked) {
-        return NextResponse.json(
-          {
-            success: false,
-            errorType: 'site_blocked',
-            error: fetchResult.blockedReason || 'The website blocked automated reading.',
-            hint: "Please open the site's Privacy Policy or Terms page in your browser, copy the text, and paste it in the Paste tab for analysis.",
-          },
-          { status: 200 }
-        );
-      }
-
-      // Step 2: Auto-discover privacy/terms link if homepage or minimal text
-      if (fetchResult.text.length < MIN_FETCHED_CHARS || !isLikelyPolicyUrl(targetUrl)) {
-        try {
-          const htmlRes = await fetch(targetUrl, {
-            headers: { 'User-Agent': BROWSER_UA, Accept: 'text/html,*/*' },
-            redirect: 'follow',
-            signal: AbortSignal.timeout(8000),
-          });
-          if (htmlRes.ok) {
-            const rawHtml = await htmlRes.text();
-            const privacyLink = findPrivacyLink(rawHtml, targetUrl);
-            if (privacyLink) {
-              resolvedSourceUrl = privacyLink;
-              const privacyFetch = await fetchPolicyText(privacyLink);
-              if (!privacyFetch.blocked && privacyFetch.text.length >= MIN_FETCHED_CHARS) {
-                fetchResult = privacyFetch;
-              }
-            }
-          }
-        } catch {
-          // If secondary discovery fetch fails, fall through to threshold check
-        }
-      }
-
-      // Step 3: Threshold check
-      if (fetchResult.text.length < MIN_FETCHED_CHARS) {
+      if (crawlResult.blocked || crawlResult.text.length < MIN_FETCHED_CHARS) {
         return NextResponse.json(
           {
             success: false,
             errorType: 'site_blocked',
             error:
-              'The website returned very little readable text — it may require JavaScript, login, or block automated reading.',
-            hint: "Please open the site's Privacy Policy or Terms page in your browser, copy the full text, and paste it in the Paste tab for a complete analysis.",
+              crawlResult.blockedReason ||
+              'The website blocked automated page reading or returned minimal text.',
+            hint: "Please open the site's Privacy Policy or Terms page in your browser, copy the text, and paste it into the Paste tab for instant analysis.",
           },
           { status: 200 }
         );
       }
 
-      policyTextToAnalyze = fetchResult.text;
+      policyTextToAnalyze = crawlResult.text;
     } else {
       // --- Direct Text Input Handling ---
       const rawPolicyText = body.policyText;
@@ -328,28 +433,38 @@ export async function POST(req: NextRequest) {
               geminiSucceeded = true;
             }
           } catch {
-            // Both Gemini models failed, fall through cleanly to Deep Rule Engine
+            // Both Gemini models failed or rate-limited; proceed to local deep analyzer
           }
         }
       }
     }
 
-    // If Gemini succeeded, verify findings grounding and return
+    // If Gemini succeeded, return grounded results with Gemini's intelligent risk score
     if (geminiSucceeded && geminiParsedResult) {
       const parsed = geminiParsedResult as AnalysisResult;
       const verifiedFindings = verifyFindingsGrounding(parsed.findings, policyTextToAnalyze);
 
-      const { score, verdictSeverity } = calculateScoreFromFindings(
-        verifiedFindings,
-        persona,
-        context,
-        riskTolerance
-      );
+      // Preserve Gemini's AI score if findings were present, or safely calculate from findings
+      let finalScore = typeof parsed.score === 'number' && parsed.score >= 0 && parsed.score <= 100
+        ? parsed.score
+        : 0;
+      let finalSeverity = parsed.verdictSeverity || 'safe';
+
+      if (verifiedFindings.length === 0) {
+        // If no findings were detected or corroborated, report low safe score
+        finalScore = Math.min(finalScore, 15);
+        finalSeverity = 'safe';
+      } else if (finalScore === 0) {
+        // Recalculate if Gemini returned findings but gave 0 score
+        const recalc = calculateScoreFromFindings(verifiedFindings, persona, context, riskTolerance);
+        finalScore = recalc.score;
+        finalSeverity = recalc.verdictSeverity;
+      }
 
       const result: AnalysisResult = {
         ...parsed,
-        score,
-        verdictSeverity,
+        score: finalScore,
+        verdictSeverity: finalSeverity,
         findings: verifiedFindings,
         executiveVerdict:
           verifiedFindings.length === 0
@@ -369,8 +484,7 @@ export async function POST(req: NextRequest) {
     }
 
     // --- Fallback Engine: Deep Local Clause & Permission Analyzer ---
-    // If Gemini rate-limited (429), errored, or had no key, NEVER return HTTP 500!
-    // Immediately execute the deep sentence-level analyzer.
+    // Executes ONLY when the Gemini API key is absent, quota/rate limits are hit, or Gemini fails
     const deepResult = analyzeDeeply(policyTextToAnalyze, persona, context, riskTolerance);
     deepResult.engineUsed = 'Deep Rule Engine';
 
@@ -382,21 +496,12 @@ export async function POST(req: NextRequest) {
       sourceUrl: resolvedSourceUrl,
     });
   } catch {
-    // Ultimate defensive catch: run safe baseline analysis
-    try {
-      const fallbackDeep = analyzeDeeply('Standard terms');
-      return NextResponse.json({
-        success: true,
-        data: fallbackDeep,
-      });
-    } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'An unexpected error occurred during policy analysis.',
-        },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'An unexpected error occurred during policy analysis. Please try again or paste the text directly.',
+      },
+      { status: 500 }
+    );
   }
 }

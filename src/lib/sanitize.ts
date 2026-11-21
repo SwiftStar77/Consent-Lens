@@ -159,23 +159,34 @@ export function extractTextFromHtml(html: string): string {
   text = text.replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, ' ');
   text = text.replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ');
 
-  // Replace block elements with linebreaks
-  text = text.replace(/<\/(p|div|h[1-6]|li|tr|section|article)>/gi, '\n');
+  // Replace block elements with linebreaks to prevent text gluing
+  text = text.replace(/<\/(p|div|h[1-6]|li|tr|section|article|header)>/gi, '\n');
   text = text.replace(/<(br|hr)\s*\/?>/gi, '\n');
 
   // Strip all remaining HTML tags
   text = text.replace(/<[^>]+>/g, ' ');
 
-  // Decode common HTML entities
+  // Decode decimal & hex HTML entities
+  text = text.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+  text = text.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+
+  // Decode common named HTML entities
   text = text
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, ' ')
     .replace(/&copy;/g, '©')
-    .replace(/&reg;/g, '®');
+    .replace(/&reg;/g, '®')
+    .replace(/&rsquo;/g, "'")
+    .replace(/&lsquo;/g, "'")
+    .replace(/&rdquo;/g, '"')
+    .replace(/&ldquo;/g, '"')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–');
 
   // Collapse consecutive whitespaces and clean line breaks
   text = text.replace(/[ \t]+/g, ' ');
