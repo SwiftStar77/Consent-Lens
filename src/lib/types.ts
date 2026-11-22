@@ -3,6 +3,9 @@
  * Defines personas, application contexts, risk severity tiers, and analysis models.
  */
 
+import type { QuotaStatus } from './quotaTracker';
+export type { QuotaStatus };
+
 /** User Persona: Tailors plain-language explanations and tone */
 export type UserPersona = 'everyday' | 'accessibility' | 'privacy_pro';
 
@@ -59,6 +62,8 @@ export interface RiskItem {
 export interface AnalysisResult {
   /** Overall risk score from 0 (completely safe) to 100 (critically dangerous) */
   score: number;
+  /** Direct un-clamped risk score alias */
+  riskScore?: number;
   /** Overall severity tier based on computed score */
   verdictSeverity: RiskSeverity;
   /** Concise executive takeaway written for the user persona */
@@ -73,6 +78,8 @@ export interface AnalysisResult {
   optOutDraft: string;
   /** Name of the engine that performed the evaluation ('Gemini AI' or 'Deep Rule Engine') */
   engineUsed: 'Gemini AI' | 'Deep Rule Engine' | 'live_ai' | 'local_rule_engine' | string;
+  /** Real-time Gemini API quota status & reset time */
+  quotaStatus?: QuotaStatus;
   /** ISO timestamp of when analysis was executed */
   analyzedAt: string;
 }

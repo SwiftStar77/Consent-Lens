@@ -13,6 +13,17 @@ import {
   UserPersona,
 } from './types';
 import { calculateScoreFromFindings } from './analyzer';
+import {
+  extractRateLimitHeaders,
+  type GeminiRateLimitHeaders,
+  type GeminiUsageMetadata,
+} from './quotaTracker';
+
+export interface GeminiCallResult {
+  parsed: unknown;
+  usageMetadata?: GeminiUsageMetadata;
+  rateLimitHeaders?: GeminiRateLimitHeaders;
+}
 
 /**
  * Generates a deterministic cache key from normalized input text and evaluation parameters.
@@ -132,14 +143,14 @@ function parseJsonSafe(raw: string): unknown {
  * @param userPrompt - Policy text enclosed in safety delimiters
  * @param apiKey - Gemini API Key from environment
  * @param model - Target Gemini model name
- * @returns Parsed JSON object from Gemini
+ * @returns Parsed JSON object, token usage metadata, and any rate limit headers from Gemini
  */
 export async function callGeminiAnalysis(
   systemPrompt: string,
   userPrompt: string,
   apiKey: string,
   model: string
-): Promise<unknown> {
+): Promise<GeminiCallResult> {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const res = await fetch(endpoint, {
@@ -157,18 +168,30 @@ export async function callGeminiAnalysis(
   });
 
   if (!res.ok) {
+    const rateLimitHeaders = extractRateLimitHeaders(res.headers);
     const errBody = await res.text().catch(() => '');
-    throw new Error(`${res.status} ${res.statusText}${errBody ? `: ${errBody.substring(0, 200)}` : ''}`);
+    const err = new Error(
+      `${res.status} ${res.statusText}${errBody ? `: ${errBody.substring(0, 200)}` : ''}`
+    ) as Error & { status?: number; rateLimitHeaders?: GeminiRateLimitHeaders };
+    err.status = res.status;
+    err.rateLimitHeaders = rateLimitHeaders;
+    throw err;
   }
 
+  const rateLimitHeaders = extractRateLimitHeaders(res.headers);
   const data = await res.json();
   const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const usageMetadata: GeminiUsageMetadata | undefined = data?.usageMetadata;
 
   if (!candidateText) {
     throw new Error('Gemini returned an empty response. Please try again.');
   }
 
-  return parseJsonSafe(candidateText);
+  return {
+    parsed: parseJsonSafe(candidateText),
+    usageMetadata,
+    rateLimitHeaders,
+  };
 }
 
 // Re-export calculateScoreFromFindings for callers

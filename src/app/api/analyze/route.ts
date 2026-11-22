@@ -21,9 +21,15 @@ import {
   condenseForPrompt,
   verifyFindingsGrounding,
   calculateScoreFromFindings,
+  type GeminiCallResult,
 } from '@/lib/llm';
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/prompts';
 import { analyzeDeeply } from '@/lib/deepAnalyzer';
+import {
+  recordGeminiUsage,
+  getGeminiQuotaStatus,
+  type GeminiRateLimitHeaders,
+} from '@/lib/quotaTracker';
 
 /**
  * Server-Side In-Memory Result Cache
@@ -394,22 +400,26 @@ export async function POST(req: NextRequest) {
     // --- Check Server Cache ---
     const cacheKey = generateCacheKey(policyTextToAnalyze, persona, context, riskTolerance);
     const cached = serverCache.get(cacheKey);
+    const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
+    const primaryModel = process.env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite';
+    const fallbackModel = 'gemini-3.8-flash';
+
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      const currentQuota = getGeminiQuotaStatus(primaryModel);
+      const cachedResult = { ...cached.result, quotaStatus: currentQuota };
       return NextResponse.json({
         success: true,
-        data: cached.result,
+        data: cachedResult,
+        quotaStatus: currentQuota,
         sourceUrl: resolvedSourceUrl,
         cached: true,
       });
     }
 
     // --- Attempt Primary Engine: Google Gemini API ---
-    const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
-    const primaryModel = process.env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite';
-    const fallbackModel = 'gemini-3.8-flash';
-
     let geminiSucceeded = false;
     let geminiParsedResult: unknown = null;
+    let activeModelUsed = primaryModel;
 
     if (geminiApiKey) {
       const condensedText = condenseForPrompt(policyTextToAnalyze);
@@ -418,59 +428,84 @@ export async function POST(req: NextRequest) {
 
       // Try primary model
       try {
-        const rawRes = await callGeminiAnalysis(systemPrompt, userPrompt, geminiApiKey, primaryModel);
-        if (rawRes && validateAnalysisResult(rawRes)) {
-          geminiParsedResult = rawRes;
-          geminiSucceeded = true;
+        const geminiCall = await callGeminiAnalysis(systemPrompt, userPrompt, geminiApiKey, primaryModel);
+        if (geminiCall.rateLimitHeaders || geminiCall.usageMetadata) {
+          recordGeminiUsage(primaryModel, geminiCall.rateLimitHeaders, geminiCall.usageMetadata);
+        } else {
+          recordGeminiUsage(primaryModel);
         }
-      } catch {
+        if (geminiCall.parsed && validateAnalysisResult(geminiCall.parsed)) {
+          geminiParsedResult = geminiCall.parsed;
+          geminiSucceeded = true;
+          activeModelUsed = primaryModel;
+        }
+      } catch (err: unknown) {
+        const callErr = err as { status?: number; rateLimitHeaders?: GeminiRateLimitHeaders };
+        if (callErr?.rateLimitHeaders) {
+          recordGeminiUsage(primaryModel, callErr.rateLimitHeaders);
+        }
         // If primary failed, attempt automatic retry on fallback model
         if (primaryModel !== fallbackModel) {
           try {
-            const retryRes = await callGeminiAnalysis(systemPrompt, userPrompt, geminiApiKey, fallbackModel);
-            if (retryRes && validateAnalysisResult(retryRes)) {
-              geminiParsedResult = retryRes;
-              geminiSucceeded = true;
+            const retryCall = await callGeminiAnalysis(systemPrompt, userPrompt, geminiApiKey, fallbackModel);
+            if (retryCall.rateLimitHeaders || retryCall.usageMetadata) {
+              recordGeminiUsage(fallbackModel, retryCall.rateLimitHeaders, retryCall.usageMetadata);
+            } else {
+              recordGeminiUsage(fallbackModel);
             }
-          } catch {
+            if (retryCall.parsed && validateAnalysisResult(retryCall.parsed)) {
+              geminiParsedResult = retryCall.parsed;
+              geminiSucceeded = true;
+              activeModelUsed = fallbackModel;
+            }
+          } catch (retryErr: unknown) {
+            const retryCallErr = retryErr as { status?: number; rateLimitHeaders?: GeminiRateLimitHeaders };
+            if (retryCallErr?.rateLimitHeaders) {
+              recordGeminiUsage(fallbackModel, retryCallErr.rateLimitHeaders);
+            }
             // Both Gemini models failed or rate-limited; proceed to local deep analyzer
           }
         }
       }
     }
 
-    // If Gemini succeeded, return grounded results with Gemini's intelligent risk score
+    const quotaStatus = getGeminiQuotaStatus(activeModelUsed || primaryModel);
+
+    // If Gemini succeeded, return grounded results with Gemini's intelligent, un-clamped risk score
     if (geminiSucceeded && geminiParsedResult) {
-      const parsed = geminiParsedResult as AnalysisResult;
+      const parsed = geminiParsedResult as AnalysisResult & { riskScore?: number };
       const verifiedFindings = verifyFindingsGrounding(parsed.findings, policyTextToAnalyze);
 
-      // Preserve Gemini's AI score if findings were present, or safely calculate from findings
-      let finalScore = typeof parsed.score === 'number' && parsed.score >= 0 && parsed.score <= 100
-        ? parsed.score
-        : 0;
-      let finalSeverity = parsed.verdictSeverity || 'safe';
+      // Extract un-clamped score directly from Gemini's response (checking riskScore or score)
+      const rawCandidateScore =
+        typeof parsed.riskScore === 'number' && !isNaN(parsed.riskScore)
+          ? parsed.riskScore
+          : parsed.score;
 
-      if (verifiedFindings.length === 0) {
-        // If no findings were detected or corroborated, report low safe score
-        finalScore = Math.min(finalScore, 15);
-        finalSeverity = 'safe';
-      } else if (finalScore === 0) {
-        // Recalculate if Gemini returned findings but gave 0 score
-        const recalc = calculateScoreFromFindings(verifiedFindings, persona, context, riskTolerance);
-        finalScore = recalc.score;
-        finalSeverity = recalc.verdictSeverity;
-      }
+      const finalScore =
+        typeof rawCandidateScore === 'number' &&
+        !isNaN(rawCandidateScore) &&
+        rawCandidateScore >= 0 &&
+        rawCandidateScore <= 100
+          ? Math.round(rawCandidateScore)
+          : (parsed.score ?? 0);
+
+      const finalSeverity =
+        parsed.verdictSeverity ||
+        (finalScore >= 68 ? 'high' : finalScore >= 40 ? 'medium' : finalScore >= 20 ? 'low' : 'safe');
 
       const result: AnalysisResult = {
         ...parsed,
         score: finalScore,
+        riskScore: finalScore,
         verdictSeverity: finalSeverity,
         findings: verifiedFindings,
         executiveVerdict:
-          verifiedFindings.length === 0
+          verifiedFindings.length === 0 && finalScore <= 15
             ? 'No major red flags or high-risk permissions were found in the provided text. The terms appear transparent and standard.'
             : parsed.executiveVerdict,
         engineUsed: 'Gemini AI',
+        quotaStatus,
         analyzedAt: new Date().toISOString(),
       };
 
@@ -479,6 +514,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         data: result,
+        quotaStatus,
         sourceUrl: resolvedSourceUrl,
       });
     }
@@ -487,12 +523,14 @@ export async function POST(req: NextRequest) {
     // Executes ONLY when the Gemini API key is absent, quota/rate limits are hit, or Gemini fails
     const deepResult = analyzeDeeply(policyTextToAnalyze, persona, context, riskTolerance);
     deepResult.engineUsed = 'Deep Rule Engine';
+    deepResult.quotaStatus = quotaStatus;
 
     serverCache.set(cacheKey, { result: deepResult, timestamp: Date.now() });
 
     return NextResponse.json({
       success: true,
       data: deepResult,
+      quotaStatus,
       sourceUrl: resolvedSourceUrl,
     });
   } catch {

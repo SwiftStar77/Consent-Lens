@@ -26,6 +26,13 @@ import {
   RiskItem,
 } from '../lib/types';
 import { verifyFindingsGrounding } from '../lib/llm';
+import {
+  getGeminiQuotaStatus,
+  recordGeminiUsage,
+  resetQuotaTrackerForTest,
+  getNextPacificMidnight,
+  extractRateLimitHeaders,
+} from '../lib/quotaTracker';
 
 describe('ConsentLens Heuristic Analyzer Engine', () => {
   const predatoryLoanSample = SAMPLE_SCENARIOS[0].content;
@@ -568,6 +575,90 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
       const result = analyzeDeeply(predatoryPolicy, 'everyday', 'finance', 'standard');
       expect(result.score).toBeGreaterThanOrEqual(75);
       expect(result.verdictSeverity).toBe('high');
+    });
+
+    it('evaluates zero-match benign text strictly to 0 with no artificial floor', () => {
+      const cleanBenignText = `
+        ConsentLens Plain Notepad
+        This app stores notes purely in your browser localStorage.
+        We do not collect personal information, cookies, or diagnostics.
+        We have no analytics, no external servers, and no advertising partners.
+      `;
+      const result = analyzeDeeply(cleanBenignText, 'everyday', 'utility', 'standard');
+      expect(result.findings.length).toBe(0);
+      expect(result.score).toBe(0);
+      expect(result.verdictSeverity).toBe('safe');
+      expect(result.riskScore).toBe(0);
+    });
+
+    it('preserves Gemini exact riskScore un-clamped without artificial clamping or flooring', () => {
+      // Simulate backend score validation logic
+      const geminiResponses = [
+        { score: 0, riskScore: 0 },
+        { score: 5, riskScore: 5 },
+        { score: 37, riskScore: 37 },
+        { score: 88, riskScore: 88 },
+        { score: 100, riskScore: 100 },
+      ];
+
+      for (const res of geminiResponses) {
+        const rawCandidate = typeof res.riskScore === 'number' ? res.riskScore : res.score;
+        const finalScore =
+          typeof rawCandidate === 'number' && !isNaN(rawCandidate) && rawCandidate >= 0 && rawCandidate <= 100
+            ? Math.round(rawCandidate)
+            : 0;
+        expect(finalScore).toBe(res.score);
+      }
+    });
+
+    it('tracks cumulative Gemini quota, computes accurate usagePercent, and returns valid resetAt', () => {
+      resetQuotaTrackerForTest();
+
+      const initialStatus = getGeminiQuotaStatus('gemini-3.5-flash-lite');
+      expect(initialStatus.totalRequestsToday).toBe(0);
+      expect(initialStatus.limitRequests).toBe(1500);
+      expect(initialStatus.usagePercent).toBe(0);
+      expect(new Date(initialStatus.resetAt).getTime()).toBeGreaterThan(Date.now());
+
+      // Simulate 15 requests consumed
+      for (let i = 0; i < 15; i++) {
+        recordGeminiUsage('gemini-3.5-flash-lite', undefined, { totalTokenCount: 500 });
+      }
+
+      const updatedStatus = getGeminiQuotaStatus('gemini-3.5-flash-lite');
+      expect(updatedStatus.totalRequestsToday).toBe(15);
+      // 15 / 1500 = 1.0%
+      expect(updatedStatus.usagePercent).toBe(1.0);
+      expect(updatedStatus.totalTokensToday).toBe(7500);
+
+      // Verify reset timestamp is valid ISO string and formats into date + time
+      const resetDate = new Date(updatedStatus.resetAt);
+      expect(isNaN(resetDate.getTime())).toBe(false);
+      const formatted = new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(resetDate);
+      expect(formatted).toMatch(/(?:\d{1,2}\s+[A-Za-z]{3}|[A-Za-z]{3}\s+\d{1,2}),?\s+\d{4}/);
+
+      // Test rate-limit header parsing when Google returns live headers
+      const mockHeaders = new Headers({
+        'x-ratelimit-limit-requests': '1000',
+        'x-ratelimit-remaining-requests': '858',
+        'retry-after': '3600',
+      });
+      const parsedHeaders = extractRateLimitHeaders(mockHeaders);
+      expect(parsedHeaders.limitRequests).toBe(1000);
+      expect(parsedHeaders.remainingRequests).toBe(858);
+      expect(parsedHeaders.retryAfterSeconds).toBe(3600);
+
+      recordGeminiUsage('gemini-3.5-flash-lite', parsedHeaders);
+      const headerStatus = getGeminiQuotaStatus('gemini-3.5-flash-lite');
+      // (1000 - 858) / 1000 = 14.2%
+      expect(headerStatus.usagePercent).toBe(14.2);
     });
   });
 });

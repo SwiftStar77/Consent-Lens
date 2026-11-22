@@ -29,6 +29,8 @@ import {
   FileTextIcon,
   ShieldIcon,
   InfoIcon,
+  ActivityIcon,
+  ClockIcon,
 } from './Icons';
 
 /**
@@ -62,6 +64,28 @@ const CATEGORY_ICONS: Record<RiskCategory, React.ReactNode> = {
   financial_lockin: <AlertCircleIcon size={16} />,
   retention_security: <AlertTriangleIcon size={16} />,
 };
+
+/**
+ * Formats an ISO reset timestamp into clear local date and time.
+ * e.g., "Nov 23, 2026, 1:30 PM"
+ */
+function formatResetTime(isoString?: string): string {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d);
+  } catch {
+    return '';
+  }
+}
 
 export function ResultsPanel({
   result,
@@ -136,20 +160,46 @@ export function ResultsPanel({
           <span style={{ fontWeight: 600 }}>Analyze Another</span>
         </button>
 
-        {/* Transparent Engine Indicator Badge */}
-        <span className="engine-pill">
-          {result.engineUsed === 'live_ai' || result.engineUsed === 'Gemini AI' ? (
-            <>
-              <SparklesIcon size={13} />
-              <span>Analysis Engine: Gemini AI</span>
-            </>
-          ) : (
-            <>
-              <CpuIcon size={13} />
-              <span>Analysis Engine: Deep Rule Engine</span>
-            </>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+          {/* Transparent Engine Indicator Badge */}
+          <span className="engine-pill">
+            {result.engineUsed === 'live_ai' || result.engineUsed === 'Gemini AI' ? (
+              <>
+                <SparklesIcon size={13} />
+                <span>Analysis Engine: Gemini AI</span>
+              </>
+            ) : (
+              <>
+                <CpuIcon size={13} />
+                <span>Analysis Engine: Deep Rule Engine</span>
+              </>
+            )}
+          </span>
+
+          {/* Gemini API Quota Usage % & Local Reset Timestamp */}
+          {result.quotaStatus && (
+            <span
+              className="engine-pill"
+              style={{
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+              }}
+              title={`Gemini API Requests: ${result.quotaStatus.totalRequestsToday} / ${result.quotaStatus.limitRequests} (${result.quotaStatus.usagePercent}% used)`}
+            >
+              <ActivityIcon size={13} />
+              <span>API Usage: {result.quotaStatus.usagePercent}%</span>
+              {result.quotaStatus.resetAt && (
+                <>
+                  <span style={{ opacity: 0.4 }}>•</span>
+                  <ClockIcon size={12} />
+                  <span>Resets {formatResetTime(result.quotaStatus.resetAt)}</span>
+                </>
+              )}
+            </span>
           )}
-        </span>
+        </div>
       </div>
 
       {/* =================================================================== */}

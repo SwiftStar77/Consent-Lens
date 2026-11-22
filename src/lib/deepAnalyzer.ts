@@ -1200,6 +1200,7 @@ export function analyzeDeeply(
 
   return {
     score,
+    riskScore: score,
     verdictSeverity,
     executiveVerdict,
     findings: matchedFindings,

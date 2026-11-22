@@ -113,7 +113,10 @@ export default function HomePage() {
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          const data: AnalysisResult = json.data;
+          const data: AnalysisResult = {
+            ...json.data,
+            quotaStatus: json.quotaStatus || json.data.quotaStatus,
+          };
           cacheRef.current.set(cacheKey, data);
           setAnalysisResult(data);
           setSimulatedFindings(data.findings);
