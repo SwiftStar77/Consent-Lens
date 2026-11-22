@@ -503,5 +503,71 @@ describe('ConsentLens Heuristic Analyzer Engine', () => {
       const extracted = extractTextFromHtml(html);
       expect(extracted).toContain("That's why & 'we' care © 2026");
     });
+
+    it('calibrates a realistic standard policy to moderate risk (~25-45) without false-positive inflation (>65)', () => {
+      const standardCommercialPolicy = `
+        Privacy Policy & Terms of Service
+
+        1. Information We Collect
+        When you register for an account, we collect your name, email address, and billing information.
+        We use cookies and third-party measurement SDKs to analyze how visitors interact with our website.
+
+        2. How We Share Information
+        We share personal information with trusted service providers who assist us with hosting, database management, and payment processing.
+        We do not sell your personal information to third parties or data brokers.
+        You have the right to opt out of targeted advertising at any time through our privacy settings.
+
+        3. Product Improvement & AI
+        We may use user prompts and inputs to train and improve our machine learning models.
+
+        4. Dispute Resolution
+        Any legal dispute arising under these terms shall be resolved through confidential binding arbitration.
+
+        5. Updates to Terms
+        We may update these terms periodically, and your continued use of the service constitutes acceptance of any changes.
+      `;
+
+      const result = analyzeDeeply(standardCommercialPolicy, 'everyday', 'utility', 'standard');
+
+      // Assert moderate risk range aligned with Gemini AI (~25-45), not severely inflated (>65)
+      expect(result.score).toBeGreaterThanOrEqual(20);
+      expect(result.score).toBeLessThanOrEqual(48);
+      expect(result.verdictSeverity).toBe('medium');
+
+      // Verify that service provider sharing is NOT falsely flagged as predatory selling
+      const findingIds = result.findings.map((f) => f.id);
+      expect(findingIds).not.toContain('share_sell_rent');
+      expect(findingIds).not.toContain('share_marketing_partners');
+      expect(findingIds).not.toContain('share_debt_brokers');
+
+      // Verify legitimate detections are present with calibrated severity
+      expect(findingIds).toContain('legal_binding_arbitration');
+      expect(findingIds).toContain('legal_ai_training');
+      expect(findingIds).toContain('share_ad_sdks');
+
+      const arbitrationFinding = result.findings.find((f) => f.id === 'legal_binding_arbitration');
+      expect(arbitrationFinding?.severity).toBe('medium');
+      expect(arbitrationFinding?.harm).toContain('private arbitration');
+
+      const aiFinding = result.findings.find((f) => f.id === 'legal_ai_training');
+      expect(aiFinding?.severity).toBe('medium');
+      expect(aiFinding?.harm).toContain('machine learning models');
+    });
+
+    it('still scores truly predatory loan/scam policies high (>75)', () => {
+      const predatoryPolicy = `
+        App Terms and Privacy Agreement:
+        The app requires READ_CONTACTS and access to your address book.
+        We require READ_SMS to monitor financial transactions.
+        We continuously track your precise GPS coordinates in the background.
+        We may sell personal data to data brokers and debt recovery agencies.
+        You grant us an auto-debit ACH mandate authorizing unilateral recurring bank withdrawals.
+        Your subscription will automatically renew without notice and all fees are strictly non-refundable.
+      `;
+
+      const result = analyzeDeeply(predatoryPolicy, 'everyday', 'finance', 'standard');
+      expect(result.score).toBeGreaterThanOrEqual(75);
+      expect(result.verdictSeverity).toBe('high');
+    });
   });
 });

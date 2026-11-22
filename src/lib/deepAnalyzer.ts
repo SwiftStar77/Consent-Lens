@@ -13,8 +13,8 @@ export interface DeepRule {
   title: string;
   category: RiskCategory;
   defaultSeverity: RiskSeverity;
-  baseWeight: number; // 8 to 30
-  individualRiskFactor: number; // 0.08 to 0.38
+  baseWeight: number; // 10 to 30
+  individualRiskFactor: number; // 0.12 to 0.36
   patterns: RegExp[];
   harmByPersona: Record<UserPersona, string>;
   plainLanguageNote: string;
@@ -42,14 +42,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'The app reads your entire contact list. Your family, friends, and coworkers can be mapped, spammed, or called by collection agents.',
+        'The app requests access to your device address book or full contact list, which can expose personal phone numbers and names of people you know.',
       accessibility:
-        'This app copies all names and phone numbers of people in your contact list without asking them.',
+        'This app asks to see and copy the names and phone numbers stored in your contacts.',
       privacy_pro:
-        'Exfiltrates device contact graph and phonebook entries, enabling social debt collection, shadow profiling, and non-consensual third-party tracking.',
+        'Harvests the device contact graph and phonebook metadata, creating relational exposure for non-consenting third parties.',
     },
     plainLanguageNote:
-      'What happens: The app takes your contacts. Why it is unsafe: Strangers and lenders can contact everyone you know.',
+      'What happens: Asks to read your contacts. Practical impact: Exposes contact names and numbers; you can deny or revoke this permission in device settings.',
     isToggleable: true,
     optOutClause: 'Revoke and delete all synced address book contacts and family phone records from your databases.',
   },
@@ -67,46 +67,46 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'The app can intercept two-factor authentication codes, bank transaction alerts, and private text conversations.',
+        'The app requests permission to read or intercept your SMS text messages, which can include two-factor verification codes and private messages.',
       accessibility:
-        'This app reads your personal text messages and secret bank codes.',
+        'This app asks to read your personal text messages and SMS codes.',
       privacy_pro:
-        'Direct exfiltration of unencrypted SMS inbox messages. Subverts SMS-based 2FA mechanisms and facilitates unauthorized transaction profiling.',
+        'Direct access to SMS message streams bypasses out-of-band two-factor authentication safeguards and exposes private message contents.',
     },
     plainLanguageNote:
-      'What happens: The app reads your text messages. Why it is unsafe: It can see bank OTP codes and private messages.',
+      'What happens: Accesses text messages. Practical impact: Can read verification codes; enter one-time codes manually rather than granting inbox access.',
     isToggleable: true,
     optOutClause: 'Immediately cease parsing transactional or personal SMS messages and erase all intercepted inbox content.',
   },
   {
     id: 'perm_location',
-    title: 'Persistent Real-Time GPS Tracking',
+    title: 'Persistent Background GPS Tracking',
     category: 'data_collection',
     defaultSeverity: 'high',
     baseWeight: 24,
     individualRiskFactor: 0.28,
     patterns: [
-      /\b(access_fine_location|access_coarse_location|access_background_location)\b/i,
+      /\b(access_fine_location|access_background_location)\b/i,
       /\b(precise\s*(gps|geographic|geolocation|location)\s*(data|coordinates?|tracking))\b/i,
       /\b(continuous(ly)?|persistent(ly)?|background)\s+[\w\s]{0,20}\b(track(ing)?|monitor(ing)?|record(ing)?)\s+[\w\s]{0,15}\b(location|gps|movement)\b/i,
       /\b(exact\s*physical\s*location\s*at\s*all\s*times)\b/i,
     ],
     harmByPersona: {
       everyday:
-        'Tracks your precise real-time location around the clock, revealing your home, workplace, medical visits, and daily travel routes.',
+        'Continuously tracks your precise real-time physical GPS coordinates in the background, revealing daily travel patterns and visited locations.',
       accessibility:
-        'This app tracks everywhere you walk, drive, or visit at all times.',
+        'This app tracks your exact location even when you are not actively using it.',
       privacy_pro:
-        'Unbounded continuous geolocation telemetry generates high-resolution lifestyle patterns, sleep schedules, and sensitive destination visits.',
+        'Continuous high-resolution geolocation tracking generates persistent spatial lifestyle profiles and sensitive destination histories.',
     },
     plainLanguageNote:
-      'What happens: Tracks your exact physical location continuously. Why it is unsafe: Reveals where you live, work, and visit.',
+      'What happens: Tracks exact background location. Practical impact: Set location permission to "Only while using app" or "Approximate" in system settings.',
     isToggleable: true,
     optOutClause: 'Disable persistent geolocation tracking and purge all historical GPS coordinate breadcrumbs.',
   },
   {
     id: 'perm_audio',
-    title: 'Background Audio Recording & Microphone Access',
+    title: 'Microphone & Audio Recording',
     category: 'data_collection',
     defaultSeverity: 'high',
     baseWeight: 26,
@@ -119,20 +119,20 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'The app can listen to ambient room sounds and private discussions through your phone microphone.',
+        'Requests access to your device microphone to record audio, voice input, or ambient sound.',
       accessibility:
-        'This app can turn on your microphone and record what you say in the room.',
+        'This app can access your microphone to listen to or record sound.',
       privacy_pro:
-        'Environmental acoustic monitoring enables offline conversion tracking, device co-location, and private conversation analysis without visual indicator.',
+        'Acoustic monitoring and microphone access privileges permit ambient audio capture without real-time active indicators.',
     },
     plainLanguageNote:
-      'What happens: Records audio from your microphone. Why it is unsafe: Can overhear private conversations in your home.',
+      'What happens: Accesses the microphone. Practical impact: Allows recording voice or room sound; grant access only when actively speaking.',
     isToggleable: true,
     optOutClause: 'Revoke microphone recording permissions and permanently delete all stored voice or ambient audio files.',
   },
   {
     id: 'perm_camera',
-    title: 'Unrestricted Camera & Video Access',
+    title: 'Broad Camera Access',
     category: 'data_collection',
     defaultSeverity: 'high',
     baseWeight: 24,
@@ -144,14 +144,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'The app requests broad camera access and may capture images or video clips beyond when you actively use the camera.',
+        'Requests camera access to capture photographs or video streams through your device.',
       accessibility:
-        'This app can access your camera and see pictures or take video through your phone.',
+        'This app can use your phone camera to take pictures or video.',
       privacy_pro:
-        'Broad camera capture privileges permit background imagery sampling and visual environment inspection.',
+        'Broad camera permissions allow optical capture of your physical surroundings.',
     },
     plainLanguageNote:
-      'What happens: Accesses your phone camera. Why it is unsafe: May capture photos or videos unexpectedly.',
+      'What happens: Accesses your camera. Practical impact: Allows taking photos or video; restrict to "While using app" in settings.',
     isToggleable: true,
     optOutClause: 'Restrict camera access strictly to in-app manual photo snapping and purge unprompted photo captures.',
   },
@@ -169,14 +169,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Logs every character you type, potentially capturing passwords, credit card numbers, and confidential messages.',
+        'Logs keystroke timing or text input as you type, which can capture passwords or unsubmitted drafts.',
       accessibility:
-        'This app records every word and letter you type on your keyboard.',
+        'This app records what you type on your keyboard.',
       privacy_pro:
-        'Kernel or web-level keystroke interception captures uncommitted input strings, credentials, and sensitive notes prior to submission.',
+        'Keystroke interception and typing telemetry captures unsubmitted input and credential data.',
     },
     plainLanguageNote:
-      'What happens: Tracks what you type. Why it is unsafe: Can steal passwords and private messages as you type them.',
+      'What happens: Records typed input. Practical impact: Can log sensitive entries; avoid using third-party keyboards for passwords.',
     isToggleable: true,
     optOutClause: 'Immediately cease logging keystroke cadences or text input and delete all captured keyboard logs.',
   },
@@ -194,46 +194,45 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Extracts permanent biometric markers such as facial scans or fingerprints. Unlike passwords, compromised biometrics cannot be changed.',
+        'Collects permanent biometric identifiers such as facial recognition scans or fingerprint templates.',
       accessibility:
-        'This app scans your face or fingerprints and saves them.',
+        'This app collects your facial scan or fingerprints and stores them.',
       privacy_pro:
-        'Irrevocable biometric identity indexing subject to BIPA violations; exposes unique physical traits to permanent data breach vulnerability.',
+        'Biometric template retention creates immutable identity compromise risk under statutory frameworks like BIPA and GDPR Art. 9.',
     },
     plainLanguageNote:
-      'What happens: Scans your face or fingerprint. Why it is unsafe: You cannot reset your face if their database is leaked.',
+      'What happens: Collects biometric data. Practical impact: Biometrics cannot be reset if breached; review biometric consent options.',
     isToggleable: true,
     optOutClause: 'Destroy all stored biometric templates, faceprints, and fingerprint records per BIPA guidelines.',
   },
   {
     id: 'perm_device_fingerprint',
-    title: 'Hardware Fingerprinting & App Inventory Logging',
+    title: 'Hardware Device Fingerprinting',
     category: 'data_collection',
     defaultSeverity: 'medium',
-    baseWeight: 18,
-    individualRiskFactor: 0.22,
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
-      /\b(device\s*fingerprint(ing)?|hardware\s*serial\s*number|imei|mac\s*address)\b/i,
-      /\b(installed\s*(applications?|apps|packages?)\s*(list|inventory)?)\b/i,
+      /\b(device\s*fingerprint(ing)?|canvas\s*fingerprint(ing)?|hardware\s*serial\s*number|imei\s*(number)?|mac\s*address)\b/i,
+      /\b(installed\s*(applications?|apps|packages?)\s*(list|inventory))\b/i,
       /\b(query_all_packages|get_installed_apps)\b/i,
-      /\b(battery\s*level|sensor\s*data|gyroscope|accelerometer\s*readings?)\b/i,
     ],
     harmByPersona: {
       everyday:
-        'Scans all other apps installed on your device and tracks your unique hardware serial numbers even if you reinstall the app.',
+        'Creates a persistent hardware profile using serial numbers, MAC addresses, or installed application inventories to identify your device across sessions.',
       accessibility:
-        'This app looks at what other apps you have on your phone and writes down your phone serial number.',
+        'This app records your device hardware identifiers and checks what other apps you have installed.',
       privacy_pro:
-        'Cross-application surveillance via installed package enumeration and persistent device fingerprinting resists private browsing and ad ID resets.',
+        'Hardware identifiers and package inventory queries resist standard advertising ID resets and cookie clearing.',
     },
     plainLanguageNote:
-      'What happens: Catalogs what other apps you use and tracks your device. Why it is unsafe: Follows you across different apps.',
+      'What happens: Identifies your hardware device. Practical impact: Enables cross-session tracking; reset advertising identifiers periodically.',
     isToggleable: true,
     optOutClause: 'Cease enumerating installed package lists and purge device fingerprinting identifiers.',
   },
   {
     id: 'perm_call_logs',
-    title: 'Call History & Phone Call Logging',
+    title: 'Call History & Telephony Logging',
     category: 'data_collection',
     defaultSeverity: 'high',
     baseWeight: 25,
@@ -245,14 +244,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Tracks who you call, when you call them, and how long you speak. Can be used for aggressive debt harassment and social mapping.',
+        'Monitors your incoming and outgoing call records, including phone numbers, timestamps, and call durations.',
       accessibility:
-        'This app reads your list of recent phone calls and sees who you called.',
+        'This app reads your phone call history to see who you called and when.',
       privacy_pro:
-        'Complete telephony metadata exfiltration revealing communication frequency, social nodes, and professional relationship graphs.',
+        'Exfiltrates telephony metadata revealing calling frequency, duration, and communication graphs.',
     },
     plainLanguageNote:
-      'What happens: Looks at your phone call records. Why it is unsafe: Sees who you speak with and when.',
+      'What happens: Accesses call history. Practical impact: Tracks who you speak with; deny call log permissions in system settings.',
     isToggleable: true,
     optOutClause: 'Delete all logged telephony metadata, timestamps, and caller identification records.',
   },
@@ -268,45 +267,47 @@ export const DEEP_RULES: DeepRule[] = [
     baseWeight: 28,
     individualRiskFactor: 0.36,
     patterns: [
-      /\b(sell(ing)?|rent(ing)?|lease|monetiz(e|ing)|commercialize)\s+[\w\s]{0,25}\b(personal\s*(data|information)|user\s*data|consumer\s*records?)\b/i,
-      /\b(we\s*may\s*sell|data\s*may\s*be\s*sold\s*or\s*rented)\b/i,
-      /\b(share\s*for\s*(monetary|financial|commercial)\s*(consideration|gain|compensation))\b/i,
+      /\b(we\s+(may\s+)?(sell|rent|lease|monetize)\s+[\w\s]{0,20}\b(personal\s*(data|information)|user\s*data|consumer\s*records?))\b/i,
+      /\b(sell(ing)?|rent(ing)?)\s+(your\s+)?(personal\s*(data|information)|email\s*addresses?)\s+to\s+third\s*parties\b/i,
+      /\b(share\s+(your\s+)?(personal\s*data|information)\s+for\s+(monetary|financial)\s+(consideration|compensation))\b/i,
+      /\b(data\s*may\s*be\s*sold\s*or\s*rented)\b/i,
     ],
     harmByPersona: {
       everyday:
-        'The company explicitly reserves the right to sell or rent your personal information to outside companies for profit.',
+        'The agreement explicitly permits selling or renting your personal data or contact records to third parties for commercial value.',
       accessibility:
-        'This company can sell your name, email, and personal information to other businesses for money.',
+        'This company can sell or rent your personal information to other businesses for money.',
       privacy_pro:
-        'Explicit commercialization of user dataset violating California CCPA § 1798.120 and GDPR data minimization requirements.',
+        'Explicit commercialization and sale of user datasets under CCPA § 1798.120 and statutory privacy frameworks.',
     },
     plainLanguageNote:
-      'What happens: They sell your data to other companies. Why it is unsafe: Your information is treated as a product for profit.',
+      'What happens: Sells your data to external parties. Practical impact: Submit a formal "Do Not Sell My Information" opt-out request.',
     isToggleable: true,
     optOutClause: 'I exercise my right to opt out of the sale or rental of all my personal data per statutory privacy laws.',
   },
   {
     id: 'share_marketing_partners',
-    title: 'Broad Sharing with Unnamed Marketing Affiliates',
+    title: 'Sharing with Third Parties for Direct Marketing',
     category: 'third_party_sharing',
     defaultSeverity: 'medium',
-    baseWeight: 18,
-    individualRiskFactor: 0.22,
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
-      /\b(share(d)?\s+with|disclose(d)?\s+to)\s+[\w\s]{0,30}\b(marketing\s*partners?|advertising\s*affiliates?|commercial\s*sponsors?|unnamed\s*third\s*parties|selected\s*partners?)\b/i,
+      /\b(share(d)?\s+with|disclose(d)?\s+to)\s+[\w\s]{0,25}\b(marketing\s*partners?|advertising\s*affiliates?|commercial\s*sponsors?)\s+(for\s+(their\s*)?(own\s*)?(direct\s*)?marketing)\b/i,
       /\b(promotional\s*partners?\s*for\s*(their\s*own\s*)?direct\s*marketing)\b/i,
-      /\b(third\s*party\s*marketers?\s*and\s*advertisers)\b/i,
+      /\b(third\s*party\s*marketers?\s*and\s*advertisers\s*for\s*(their\s*)?promotional\s*purposes)\b/i,
+      /\b(unaffiliated\s*third\s*parties\s*for\s*(their\s*)?(own\s*)?marketing)\b/i,
     ],
     harmByPersona: {
       everyday:
-        'Your contact info and profile can be distributed to hundreds of commercial partners, resulting in unsolicited spam calls, texts, and emails.',
+        'Allows sharing your contact details or profile with commercial partners so they can send you independent promotional offers.',
       accessibility:
-        'This company shares your information with other companies who will send you junk mail and ads.',
+        'This company can share your contact info with promotional partners who want to send you offers.',
       privacy_pro:
-        'Broad affiliate sharing covenants enable cross-merchant consumer profiling without affirmative transactional consent.',
+        'Permits sharing personal identifiers with third parties for independent commercial marketing and lead generation.',
     },
     plainLanguageNote:
-      'What happens: Shares your details with marketing partners. Why it is unsafe: Results in endless spam and promotional calls.',
+      'What happens: Shares details with marketing partners. Practical impact: May increase promotional contacts; opt out via communication preferences.',
     isToggleable: true,
     optOutClause: 'Cease sharing any of my personal details with external marketing affiliates or promotional sponsors.',
   },
@@ -319,69 +320,70 @@ export const DEEP_RULES: DeepRule[] = [
     individualRiskFactor: 0.33,
     patterns: [
       /\b(data\s*brokers?|credit\s*bureaus?|collection\s*agenc(y|ies)|recovery\s*agents?)\b/i,
-      /\b(share\s*with|disclose\s*to|transfer\s*to)\s+[\w\s]{0,25}\b(debt\s*collectors?|credit\s*reporting\s*agenc(y|ies)|aggregators?)\b/i,
+      /\b(share\s*with|disclose\s*to|transfer\s*to)\s+[\w\s]{0,25}\b(debt\s*collectors?|credit\s*reporting\s*agenc(y|ies)|data\s*aggregators?)\b/i,
       /\b(for\s*the\s*purpose\s*of\s*debt\s*recovery\s*or\s*credit\s*assessment)\b/i,
     ],
     harmByPersona: {
       everyday:
-        'Your contacts, payment history, and location can be handed to debt recovery agencies and commercial data aggregators.',
+        'Allows transferring account history and contact records to commercial data brokers or debt collection agencies.',
       accessibility:
-        'This company can give your info to collection agencies or credit companies who may chase you for payments.',
+        'This company can hand your records over to collection agencies or commercial data brokers.',
       privacy_pro:
-        'Unregulated syndication to debt recovery affiliates and data brokers exposes users to aggressive offline collection tactics.',
+        'Syndicates user records to credit reporting agencies and data brokers, creating secondary offline tracking and collection exposure.',
     },
     plainLanguageNote:
-      'What happens: Sends your info to debt collectors and data brokers. Why it is unsafe: Strangers can contact you about money.',
+      'What happens: Distributes info to brokers or collection agencies. Practical impact: Can affect credit records; request data broker removal.',
     isToggleable: true,
     optOutClause: 'Immediately cease syndicating or distributing my contact and account records to debt recovery affiliates or data brokers.',
   },
   {
     id: 'share_ad_tracking',
-    title: 'Cross-Context Behavioral Ad Tracking',
+    title: 'Cross-Context Targeted Advertising',
     category: 'third_party_sharing',
     defaultSeverity: 'medium',
-    baseWeight: 17,
-    individualRiskFactor: 0.20,
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(cross-context\s*behavioral\s*advertising|targeted\s*advertis(ing|ements?)|interest-based\s*ads?)\b/i,
-      /\b(track(ing)?\s*(your\s*)?activity\s*across\s*(other\s*)?(websites|apps|platforms))\b/i,
-      /\b(create\s*a\s*commercial\s*profile|behavioral\s*profiling)\b/i,
+      /\b(track(ing)?\s*(your\s*)?activity\s*across\s*(other\s*)?(unaffiliated\s*)?(websites|apps|platforms))\b/i,
+      /\b(create\s*a\s*commercial\s*profile|behavioral\s*profiling\s*for\s*ads?)\b/i,
     ],
     harmByPersona: {
       everyday:
-        'Tracks what you browse and buy across other websites to build a psychological profile for targeted advertising.',
+        'Shares browsing and usage activity with advertising networks to show personalized, interest-based ads across different websites.',
       accessibility:
-        'This company watches what you look at on other websites so they can show you ads.',
+        'Advertising companies track what you view across websites so they can display targeted advertisements.',
       privacy_pro:
-        'Cross-site behavioral telemetry feeds programmatic RTB (real-time bidding) advertising auction exchanges.',
+        'Transmits behavioral telemetry and advertising identifiers to ad networks for cross-site profile building and real-time bidding.',
     },
     plainLanguageNote:
-      'What happens: Tracks you across the web to show ads. Why it is unsafe: Builds an invasive dossier on your private browsing.',
+      'What happens: Tracks activity across the web for ad targeting. Practical impact: Reduces online anonymity; opt out via cookie or ad-tracking settings.',
     isToggleable: true,
     optOutClause: 'I opt out of all cross-context behavioral advertising and commercial profiling activities.',
   },
   {
     id: 'share_ad_sdks',
-    title: 'Embedded Third-Party Ad SDKs & Trackers',
+    title: 'Third-Party Analytics & Tracking SDKs',
     category: 'third_party_sharing',
-    defaultSeverity: 'medium',
-    baseWeight: 16,
-    individualRiskFactor: 0.18,
+    defaultSeverity: 'low',
+    baseWeight: 10,
+    individualRiskFactor: 0.12,
     patterns: [
-      /\b(third\s*party\s*(sdks?|software\s*development\s*kits?|trackers?|pixels?|web\s*beacons?))\b/i,
-      /\b(analytics\s*and\s*advertising\s*(sdks?|libraries|partners?))\b/i,
-      /\b(allow\s*third\s*parties\s*to\s*collect\s*information\s*directly\s*through\s*(our\s*)?(service|app))\b/i,
+      /\b(third[\s-]party\s*(sdks?|measurement\s*sdks?|software\s*development\s*kits?|trackers?|pixels?|web\s*beacons?))\b/i,
+      /\b((analytics|measurement)\s*(and\s*(measurement|analytics)\s*)?(sdks?|libraries|partners?|tools?))\b/i,
+      /\b(third[\s-]party\s*cookies(\s*and\s*(similar\s*)?tracking\s*technologies)?)\b/i,
+      /\b(cookies\s*and\s*(third[\s-]party\s*)?(measurement|tracking|analytics)\s*(technologies|sdks?|tools?))\b/i,
     ],
     harmByPersona: {
       everyday:
-        'Third-party analytics and advertising tools run inside the app, sending your telemetry to foreign servers.',
+        'Uses third-party analytics and measurement tools to monitor website performance, feature usage, and traffic trends.',
       accessibility:
-        'Other advertising companies have code inside this app that monitors what you do.',
+        'Third-party measurement tools run inside the app to understand how people use it.',
       privacy_pro:
-        'Undisclosed embedded SDK binaries bypass local consent controls by establishing direct telemetry conduits to ad networks.',
+        'Embedded third-party libraries and cookies transmit technical session telemetry and diagnostics to analytics providers.',
     },
     plainLanguageNote:
-      'What happens: Foreign ad software runs inside the app. Why it is unsafe: Leaks your usage without your direct knowledge.',
+      'What happens: Uses third-party analytics tools. Practical impact: Standard for monitoring app performance; manage via browser cookie controls.',
     isToggleable: true,
     optOutClause: 'Block all third-party tracking pixels and ad network telemetry associated with this user ID.',
   },
@@ -391,7 +393,7 @@ export const DEEP_RULES: DeepRule[] = [
   // =========================================================================
   {
     id: 'finance_silent_autorenewal',
-    title: 'Silent Subscription Auto-Renewal',
+    title: 'Automatic Subscription Renewal',
     category: 'financial_lockin',
     defaultSeverity: 'high',
     baseWeight: 26,
@@ -404,24 +406,24 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Free trial silently converts into an expensive recurring charge on your credit card without sending a reminder email.',
+        'Free trials or memberships automatically renew into ongoing recurring billing unless actively cancelled before the renewal date.',
       accessibility:
-        'If you forget to cancel before the trial ends, you will automatically be charged money every month or year.',
+        'Your subscription will keep charging you money automatically every month or year until you cancel.',
       privacy_pro:
-        'Negative-option billing dark pattern converts evaluation periods into recurring liabilities without pre-charge transactional notifications.',
+        'Negative-option billing covenants convert trials into recurring financial liabilities without affirmative renewal re-authorization.',
     },
     plainLanguageNote:
-      'What happens: Silently charges your card after a free trial. Why it is unsafe: You may pay hundreds of dollars unexpectedly.',
+      'What happens: Automatically renews subscription charges. Practical impact: Set a calendar reminder before the trial ends to decide whether to cancel.',
     isToggleable: true,
     optOutClause: 'Cancel automatic recurring subscription renewals and provide at least 7 days email notice before any future billing.',
   },
   {
     id: 'finance_nonrefundable',
-    title: 'Strict Non-Refundable Fee Forfeiture',
+    title: 'Non-Refundable Fee Policy',
     category: 'financial_lockin',
     defaultSeverity: 'medium',
-    baseWeight: 19,
-    individualRiskFactor: 0.22,
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(all\s*fees?\s*are\s*non-refundable|payments?\s*are\s*final\s*and\s*non-refundable)\b/i,
       /\b(no\s*refunds?\s*(or\s*credits?\s*)?(will\s*be\s*issued|provided|given))\b/i,
@@ -429,14 +431,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'All purchases are strictly non-refundable, even if the service stops working or you cancel immediately after being charged.',
+        'States that fees and subscription payments are final and non-refundable once processed.',
       accessibility:
-        'You can never get your money back, even if the app breaks or does not work.',
+        'Payments cannot be refunded once charged, even if you stop using the service.',
       privacy_pro:
-        'Disclaims all statutory cooling-off periods and refund recourse regardless of service outage or merchant non-performance.',
+        'Disclaims standard refund recourse and cooling-off cancellation rights post-transaction.',
     },
     plainLanguageNote:
-      'What happens: No refunds ever. Why it is unsafe: If the service is broken or charges you by mistake, you cannot get your money back.',
+      'What happens: Fees are non-refundable. Practical impact: Try a free tier or monthly billing before committing to long prepaid terms.',
     isToggleable: true,
     optOutClause: 'Honor statutory consumer refund and charge-reversal rights in the event of service disruption or erroneous charges.',
   },
@@ -455,49 +457,49 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Gives the company power to pull money directly out of your bank account without asking for your approval each time.',
+        'Authorizes recurring direct debits straight from your bank account without requiring per-transaction approvals.',
       accessibility:
-        'This allows the company to take money straight out of your bank account without checking with you first.',
+        'Allows the company to take money directly from your bank account on a recurring schedule.',
       privacy_pro:
-        'Broad recurring ACH direct-debit authorization without per-transaction confirmation or escrow safeguards.',
+        'Direct ACH debit authorization permits automated bank account withdrawals without per-charge affirmative authorization.',
     },
     plainLanguageNote:
-      'What happens: Can pull money directly from your bank account. Why it is unsafe: Can drain your balance without prior warning.',
+      'What happens: Debits your bank account directly. Practical impact: Check your bank portal to review or revoke recurring debit mandates.',
     isToggleable: true,
     optOutClause: 'Revoke unilateral recurring bank account auto-debit authorizations and require manual per-charge confirmation.',
   },
   {
     id: 'finance_unilateral_price_change',
-    title: 'Unilateral Price Increases Without Notice',
+    title: 'Price Changes Without Advance Notice',
     category: 'financial_lockin',
     defaultSeverity: 'medium',
-    baseWeight: 18,
-    individualRiskFactor: 0.20,
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(change\s*(prices?|fees?|rates?|pricing)\s*(at\s*any\s*time)?\s*(without\s*(prior\s*)?notice))\b/i,
-      /\b(reserve\s*the\s*right\s*to\s*modify\s*(our\s*)?(fees?|pricing|charges?)\s*at\s*sole\s*discretion)\b/i,
+      /\b(reserve\s*the\s*right\s*to\s*modify\s*(our\s*)?(fees?|pricing|charges?)\s*at\s*sole\s*discretion\s*without\s*notice)\b/i,
       /\b(price\s*increases?\s*shall\s*take\s*effect\s*immediately)\b/i,
     ],
     harmByPersona: {
       everyday:
-        'The company can raise your subscription price at any time without telling you in advance, billing the higher rate on your next renewal.',
+        'The company reserves the ability to adjust subscription rates or fees without providing advance notice before your next bill.',
       accessibility:
-        'They can make the service more expensive at any time without telling you beforehand.',
+        'The service can raise prices at any time without telling you beforehand.',
       privacy_pro:
-        'Unilateral rate escalation clause eliminates price certainty and relies on passive user renewal to lock in price hikes.',
+        'Unilateral rate modification without mandated advance notice periods weakens price predictability.',
     },
     plainLanguageNote:
-      'What happens: Can increase prices without telling you. Why it is unsafe: You might be charged a much higher price without agreeing.',
+      'What happens: Can change pricing without advance notice. Practical impact: Monitor monthly billing statements for rate adjustments.',
     isToggleable: true,
     optOutClause: 'Require advance written notice and affirmative consent before any fee increases apply to my account.',
   },
   {
     id: 'finance_difficult_cancellation',
-    title: 'Dark Pattern Cancellation Obstacles',
+    title: 'Onerous Cancellation Procedures',
     category: 'financial_lockin',
     defaultSeverity: 'medium',
-    baseWeight: 18,
-    individualRiskFactor: 0.22,
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(cancellations?\s*require\s*(at\s*least\s*)?\d+\s*days?\s*(advance\s*)?notice)\b/i,
       /\b(must\s*call\s*(our\s*)?customer\s*service\s*to\s*cancel|cancel\s*only\s*by\s*phone)\b/i,
@@ -505,14 +507,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Forces you through tedious obstacles to cancel—such as requiring 30 days advance notice, phone calls, or certified postal mail.',
+        'Requires advance notice periods (such as 30 days) or offline channels (phone calls or certified mail) to cancel recurring subscriptions.',
       accessibility:
-        'Cancelling your subscription is made very hard. You might have to call during work hours or send letters.',
+        'Cancelling requires extra steps like making phone calls or sending letters well before your billing date.',
       privacy_pro:
-        'Asymmetric churn friction violates FTC Click-to-Cancel standards by establishing onerous hurdles for subscription termination.',
+        'Onerous cancellation friction creates obstacles to subscription termination in contrast to self-serve instant cancellation standards.',
     },
     plainLanguageNote:
-      'What happens: Makes it extremely hard to cancel. Why it is unsafe: You keep getting billed while trying to find a way to cancel.',
+      'What happens: Requires complex cancellation steps. Practical impact: Initiate cancellation well ahead of any mandatory advance notice window.',
     isToggleable: true,
     optOutClause: 'Provide immediate, self-serve electronic cancellation through my account dashboard.',
   },
@@ -522,11 +524,11 @@ export const DEEP_RULES: DeepRule[] = [
   // =========================================================================
   {
     id: 'legal_binding_arbitration',
-    title: 'Forced Confidential Binding Arbitration',
+    title: 'Mandatory Binding Arbitration',
     category: 'retention_security',
-    defaultSeverity: 'high',
-    baseWeight: 24,
-    individualRiskFactor: 0.28,
+    defaultSeverity: 'medium',
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(binding\s*arbitration|mandatory\s*arbitration|arbitration\s*clause)\b/i,
       /\b(waive\s*(your\s*)?(right\s*to\s*)?(a\s*)?(jury\s*trial|go\s*to\s*court))\b/i,
@@ -534,14 +536,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'You give up your right to sue the company in open court or before a jury if they leak your data or defraud you.',
+        'Requires resolving legal disputes through private arbitration rather than a public court or jury trial. Practical impact: Limits formal court litigation options, though individual arbitration remains available.',
       accessibility:
-        'You agree you can never take this company to court or appear in front of a judge if they harm you.',
+        'If a serious legal dispute happens, it must be handled by a private arbitrator rather than a judge in court.',
       privacy_pro:
-        'Compulsory private arbitration strips public judicial oversight and eliminates legal precedent in consumer dispute adjudication.',
+        'Compulsory binding arbitration replaces judicial forums and statutory jury trials with private dispute resolution mechanisms.',
     },
     plainLanguageNote:
-      'What happens: You cannot sue them in court. Why it is unsafe: If they leak your data, you cannot take them before a public judge.',
+      'What happens: Disputes go to private arbitration rather than court. Practical impact: Limits court lawsuits; check if the agreement offers an opt-out window (usually 30 days).',
     isToggleable: true,
     optOutClause: 'I formally opt out of the mandatory binding arbitration provision as permitted within statutory deadlines.',
   },
@@ -549,9 +551,9 @@ export const DEEP_RULES: DeepRule[] = [
     id: 'legal_class_action_waiver',
     title: 'Class-Action Lawsuit Waiver',
     category: 'retention_security',
-    defaultSeverity: 'high',
-    baseWeight: 25,
-    individualRiskFactor: 0.30,
+    defaultSeverity: 'medium',
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(class\s*action\s*waiver|waive\s*class\s*action)\b/i,
       /\b(no\s*class\s*(or\s*representative\s*)?(actions?|proceedings?|claims?))\b/i,
@@ -560,20 +562,20 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Prevents you from banding together with other affected customers in a group lawsuit if the company harms millions of users at once.',
+        'Requires resolving claims strictly on an individual basis and waives the right to participate in group or class-action lawsuits.',
       accessibility:
-        'You cannot join with other people in a group lawsuit against this company.',
+        'You agree to handle any legal dispute individually and cannot join group lawsuits with other customers.',
       privacy_pro:
-        'Disables aggregate consumer collective redress, rendering individual low-value claims economically non-viable.',
+        'Class-action waiver limits dispute aggregation, requiring individualized claims regardless of widespread common impact.',
     },
     plainLanguageNote:
-      'What happens: You cannot join a class action. Why it is unsafe: If everyone loses $50, no single person can afford a solo lawsuit.',
+      'What happens: Waives class-action participation. Practical impact: Requires individual claims rather than joining collective consumer lawsuits.',
     isToggleable: true,
     optOutClause: 'I reject the class action waiver clause and preserve all collective litigation and representative redress rights.',
   },
   {
     id: 'legal_perpetual_license',
-    title: 'Perpetual & Irrevocable License Over User Content',
+    title: 'Perpetual License Over Uploaded Content',
     category: 'retention_security',
     defaultSeverity: 'high',
     baseWeight: 26,
@@ -581,29 +583,28 @@ export const DEEP_RULES: DeepRule[] = [
     patterns: [
       /\b(perpetual,\s*irrevocable,\s*royalty-free|irrevocable,\s*perpetual\s*license)\b/i,
       /\b(transferable,\s*sub-?licensable,\s*worldwide\s*license)\b/i,
-      /\b(use,\s*reproduce,\s*modify,\s*adapt,\s*publish,\s*translate,\s*create\s*derivative\s*works)\b/i,
       /\b(own(ership\s*of)?\s*(all\s*)?(content|materials?|uploads?|submissions?)\s*you\s*post)\b/i,
     ],
     harmByPersona: {
       everyday:
-        'The company claims permanent ownership rights over files, photos, code, or documents you upload to their service forever.',
+        'Grants the service an irrevocable, perpetual, royalty-free worldwide license to use, adapt, or distribute your uploaded files or content.',
       accessibility:
-        'Anything you upload (photos, files, text) becomes theirs to use forever without paying you.',
+        'Anything you upload can be used and distributed by the company forever without paying you.',
       privacy_pro:
-        'Extravagant intellectual property assignment covenants transfer worldwide derivative commercial exploitation rights over private user uploads.',
+        'Broad intellectual property assignment and perpetual sub-licensing covenants transfer durable commercial rights over private user uploads.',
     },
     plainLanguageNote:
-      'What happens: They can use your uploads forever. Why it is unsafe: You lose control over your own photos, text, or files.',
+      'What happens: Grants broad perpetual rights over your uploads. Practical impact: Avoid uploading sensitive or proprietary creative works.',
     isToggleable: true,
     optOutClause: 'Revoke broad perpetual sub-licensing rights over all user-uploaded files, creative works, and proprietary documents.',
   },
   {
     id: 'legal_ai_training',
-    title: 'Training AI Models on Private User Data & Prompts',
+    title: 'Using User Data to Train AI Models',
     category: 'retention_security',
-    defaultSeverity: 'high',
-    baseWeight: 26,
-    individualRiskFactor: 0.33,
+    defaultSeverity: 'medium',
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(train(ing)?\s*[\w\s]{0,20}\b(ai|artificial\s*intelligence|machine\s*learning|llms?|neural\s*networks?|models?))\b/i,
       /\b(use\s*(your\s*)?(content|prompts?|inputs?|documents?|files?)\s*(to\s*)?(improve|develop|train)\s*(our\s*)?(ai|models?|services?))\b/i,
@@ -611,24 +612,24 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Your uploaded files, private documents, code, or prompts are fed into AI models and can resurface in responses to other users.',
+        'Your prompts, inputs, or uploaded content may be used to train or refine artificial intelligence and machine learning models.',
       accessibility:
-        'Your private notes and files are used to teach computer AI models.',
+        'Your messages, notes, and files may be used to train computer AI models. Do not submit private secrets or sensitive info.',
       privacy_pro:
-        'Commercial foundation model ingestion compromises proprietary trade secrets and exposes confidential corporate data through model inversion attacks.',
+        'Permits ingestion of user prompts, inputs, and documents for model development and fine-tuning unless enterprise zero-data-retention terms apply.',
     },
     plainLanguageNote:
-      'What happens: Uses your private data to train AI. Why it is unsafe: Your private notes could show up in answers to other users.',
+      'What happens: User inputs help train AI systems. Practical impact: Avoid sharing confidential details unless AI model training is opted out in account settings.',
     isToggleable: true,
     optOutClause: 'I withhold all consent for my prompts, code, files, and account communications to be ingested or used for AI/LLM model training.',
   },
   {
     id: 'legal_unilateral_terms_modification',
-    title: 'Unilateral Terms Modification Without Notice',
+    title: 'Terms Updates & Modifications',
     category: 'retention_security',
-    defaultSeverity: 'medium',
-    baseWeight: 17,
-    individualRiskFactor: 0.19,
+    defaultSeverity: 'low',
+    baseWeight: 10,
+    individualRiskFactor: 0.12,
     patterns: [
       /\b(modify|change|update|amend)\s+[\w\s]{0,20}\b(terms|agreement|policy)\s*(at\s*any\s*time)?\s*(without\s*(prior\s*)?notice)\b/i,
       /\b(continued\s*use\s*(of\s*the\s*service)?\s*constitutes?\s*acceptance\s*of\s*(any\s*)?changes)\b/i,
@@ -636,14 +637,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'The company can quietly change the terms or privacy rules whenever they want, and using the app means you automatically agree.',
+        'The company may update its terms or privacy policy over time, treating continued use of the service as acceptance of the updated terms.',
       accessibility:
-        'The rules can be changed at any time without telling you. If you keep using the app, you agree to the new rules.',
+        'The company can update the rules over time. If you continue using the app, you agree to the new terms.',
       privacy_pro:
-        'Silent unilateral alteration clause bypasses notice requirements, placing the burden of contract change detection entirely on the consumer.',
+        'Standard terms alteration mechanism where continued platform utilization constitutes implied acceptance of revised covenants.',
     },
     plainLanguageNote:
-      'What happens: Can change the contract quietly at any time. Why it is unsafe: You may agree to bad terms without ever seeing them.',
+      'What happens: Policy terms can be updated periodically. Practical impact: Review email update notices when sent.',
     isToggleable: true,
     optOutClause: 'Require explicit written notice via email before any material contractual modifications take effect.',
   },
@@ -653,36 +654,36 @@ export const DEEP_RULES: DeepRule[] = [
   // =========================================================================
   {
     id: 'retention_indefinite',
-    title: 'Indefinite Data Retention & Archival',
+    title: 'Indefinite Data Retention',
     category: 'retention_security',
-    defaultSeverity: 'high',
-    baseWeight: 24,
-    individualRiskFactor: 0.29,
+    defaultSeverity: 'medium',
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(retain(ed)?\s*indefinitely|store(d)?\s*forever|kept\s*perpetually)\b/i,
-      /\b(retain(ed)?\s*for\s*as\s*long\s*as\s*(we\s*deem\s*necessary|necessary\s*for\s*our\s*business\s*purposes))\b/i,
       /\b(no\s*defined\s*retention\s*period|indefinite\s*retention\s*period)\b/i,
+      /\b(retain(ed)?\s*for\s*as\s*long\s*as\s*(we\s*deem\s*necessary|necessary\s*for\s*our\s*business\s*purposes))\b/i,
     ],
     harmByPersona: {
       everyday:
-        'Your personal records and account history are kept on their servers forever, with no expiration or cleanup date.',
+        'Personal records are stored for ongoing business or compliance periods without a fixed automatic expiration date.',
       accessibility:
-        'The company keeps your personal records forever and never deletes them.',
+        'The company keeps your account information for its business records until you ask them to delete it.',
       privacy_pro:
-        'Violation of GDPR Article 5(1)(e) storage limitation principles; preserves persistent behavioral data lakes indefinitely.',
+        'Flexible retention windows maintain account records for ongoing business and compliance needs rather than enforcing strict automated expiration cycles.',
     },
     plainLanguageNote:
-      'What happens: Keeps your data forever. Why it is unsafe: Increases the chance that an old data breach leaks your history.',
+      'What happens: Records are retained for business needs. Practical impact: Request account data deletion when you stop using the service.',
     isToggleable: true,
     optOutClause: 'Apply strict data minimization and permanently scrub all records older than 12 months.',
   },
   {
     id: 'retention_post_deletion',
-    title: 'Refusal to Erase Data After Account Deletion',
+    title: 'Post-Account Deletion Record Archival',
     category: 'retention_security',
-    defaultSeverity: 'high',
-    baseWeight: 26,
-    individualRiskFactor: 0.32,
+    defaultSeverity: 'medium',
+    baseWeight: 12,
+    individualRiskFactor: 0.16,
     patterns: [
       /\b(retain(ed)?\s*(even\s*)?after\s*(account\s*)?(deletion|closure|termination))\b/i,
       /\b(deleting\s*(your\s*)?account\s*does\s*not\s*delete\s*(your\s*)?(data|information|records?))\b/i,
@@ -690,14 +691,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Even if you delete the app and cancel your account, the company keeps all your private records on file.',
+        'Certain transaction, security, or audit records may remain archived even after account deletion where required for legal and financial compliance.',
       accessibility:
-        'Even if you delete the app, they keep all your personal information on their computers.',
+        'Some records may stay in company archives for legal and safety rules even after you close your account.',
       privacy_pro:
-        'Denial of GDPR Article 17 "Right to Erasure" and CCPA deletion mandates; retains identifiable user data post-termination.',
+        'Maintains post-termination archival records for statutory compliance, dispute resolution, and security auditing.',
     },
     plainLanguageNote:
-      'What happens: Keeps your info even if you delete your account. Why it is unsafe: You cannot make them forget you.',
+      'What happens: Archives compliance logs after account closure. Practical impact: Normal for tax and fraud prevention; submit a data erasure request if needed.',
     isToggleable: true,
     optOutClause: 'Fully erase all personal identifiers and records within 30 days upon account deletion per GDPR Art. 17.',
   },
@@ -715,14 +716,14 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'Transmits or stores your data without proper encryption, and disclaims responsibility if hackers steal your information.',
+        'Transmits or stores information without guaranteed encryption, and disclaims liability if security breaches or unauthorized access occur.',
       accessibility:
-        'Your private data is sent without safety locks. If hackers steal it, the company says it is your fault.',
+        'The service does not promise to encrypt your data and disclaims responsibility if data is intercepted.',
       privacy_pro:
-        'Absence of encryption in transit or at rest violates Article 32 GDPR requirements for appropriate technical and organizational safeguards.',
+        'Disclaims standard encryption warranties and liability for data in transit and at rest.',
     },
     plainLanguageNote:
-      'What happens: Does not promise to encrypt your data. Why it is unsafe: Hackers can intercept your messages and passwords.',
+      'What happens: Disclaims security guarantees. Practical impact: Avoid transmitting sensitive financial or personal data.',
     isToggleable: true,
     optOutClause: 'Enforce AES-256 encryption at rest and TLS 1.3 in transit across all user data stores.',
   },
@@ -731,8 +732,8 @@ export const DEEP_RULES: DeepRule[] = [
     title: 'Broad Disclosure to Authorities Without Warrant',
     category: 'retention_security',
     defaultSeverity: 'medium',
-    baseWeight: 20,
-    individualRiskFactor: 0.24,
+    baseWeight: 18,
+    individualRiskFactor: 0.22,
     patterns: [
       /\b(disclose(d)?\s*to\s*(law\s*enforcement|government|authorities)\s*(without\s*(a\s*)?(warrant|subpoena|court\s*order)))\b/i,
       /\b(upon\s*informal\s*request\s*of\s*government\s*officials)\b/i,
@@ -740,44 +741,86 @@ export const DEEP_RULES: DeepRule[] = [
     ],
     harmByPersona: {
       everyday:
-        'The company volunteers your private records to law enforcement upon informal request, without requiring a judicial search warrant or court subpoena.',
+        'Allows voluntary disclosure of user records to law enforcement upon informal request, without requiring a formal subpoena or judicial warrant.',
       accessibility:
-        'The company can hand your private messages to the police without a judge signing a warrant.',
+        'The company can share your records with government officials without requiring a court warrant.',
       privacy_pro:
-        'Extralegal data disclosure policies surrender user privacy without requiring lawful process, subpoenas, or warrants.',
+        'Voluntary government disclosure policies bypass standard statutory subpoena and warrant requirements.',
     },
     plainLanguageNote:
-      'What happens: Gives your records to officials without a warrant. Why it is unsafe: Bypasses standard legal protections.',
+      'What happens: Can disclose records to officials without a court warrant. Practical impact: Standard legal protections are waived.',
     isToggleable: true,
     optOutClause: 'Strictly require a valid judicial warrant or court subpoena prior to disclosing any user telemetry.',
   },
 ];
 
 /**
- * Checks if a sentence explicitly negates the clause (e.g. "We do not sell or share", "Zero tracking").
+ * Checks if a sentence explicitly negates the clause or outlines an opt-out right.
+ * (e.g. "We do not sell or share", "Zero tracking", "You may opt out at any time").
  */
 export function isNegatedClause(sentence: string): boolean {
-  const normalized = sentence.toLowerCase();
+  const normalized = sentence.toLowerCase().trim();
 
-  // Explicit negation phrases
+  // 1. Explicit Negation Phrases
   if (
-    /\b(do\s*not|does\s*not|will\s*not|never|no|zero|without|neither|nor|not\s*required|shall\s*not|is\s*not|are\s*not)\s+[\w\s]{0,35}\b(sell|share|rent|track|collect|record|transfer|require|access|charge|convert|disclose|retain|use|train|modify|mandate|arbitrate)\b/i.test(
+    /\b(do\s*not|does\s*not|will\s*not|never|no|zero|without|neither|nor|not\s*required|shall\s*not|is\s*not|are\s*not|have\s*not)\s+[\w\s]{0,35}\b(sell|share|rent|track|collect|record|transfer|require|access|charge|convert|disclose|retain|use|train|modify|mandate|arbitrate|monetize)\b/i.test(
       normalized
     )
   ) {
     return true;
   }
 
+  // 2. Clear Subject Negations & Explicit Non-Sales
   if (
-    /\b(we\s+do\s+not\s+(sell|rent|share|collect|store|access|monetize))\b/i.test(normalized) ||
-    /\b(never\s+(sells?|rents?|shares?|collects?|records?|stores?|accesses?|monetizes?))\b/i.test(normalized) ||
-    /\b(without\s+(your\s+)?(explicit|express|affirmative)?\s*(consent|permission|authorization))\b/i.test(normalized) ||
-    /\b(zero\s+(tracking|logging|data\s+collection|ads))\b/i.test(normalized)
+    /\b(we\s+do\s+not\s+(sell|rent|share|collect|store|access|monetize|track|use|disclose))\b/i.test(normalized) ||
+    /\b(never\s+(sells?|rents?|shares?|collects?|records?|stores?|accesses?|monetizes?|tracks?))\b/i.test(normalized) ||
+    /\b(without\s+(your\s+)?(explicit|express|affirmative)?\s*(consent|permission|authorization|prior\s*approval))\b/i.test(normalized) ||
+    /\b(zero\s+(tracking|logging|data\s+collection|ads))\b/i.test(normalized) ||
+    /\b(not\s+(in\s+the\s+business\s+of\s+selling|sold\s+or\s+rented))\b/i.test(normalized) ||
+    /\b(we\s+(have\s+not|do\s+not)\s+sold\s+any\s+personal)\b/i.test(normalized)
+  ) {
+    return true;
+  }
+
+  // 3. Opt-out Rights & Statutory CCPA / GDPR Notices
+  if (
+    /\b(you\s+(can|may|have\s+the\s+right\s+to)\s+opt[\s-]out)\b/i.test(normalized) ||
+    /\b(opt[\s-]out\s+at\s+any\s+time)\b/i.test(normalized) ||
+    /\b(right\s+to\s+opt[\s-]out\s+of\s+(the\s+)?(sale|sharing|targeted))\b/i.test(normalized) ||
+    /\b(do\s+not\s+sell\s+or\s+share\s+my\s+personal)\b/i.test(normalized) ||
+    /\b(instructions?\s+on\s+how\s+to\s+opt[\s-]out)\b/i.test(normalized)
   ) {
     return true;
   }
 
   return false;
+}
+
+/**
+ * Checks if a clause is describing routine operational processing by service providers,
+ * payment processors, hosting vendors, or legal compliance, which should NOT be flagged
+ * as predatory third-party data selling, syndication, or broker sharing.
+ */
+export function isOperationalServiceClause(clause: string, ruleId?: string): boolean {
+  // Only applies to third-party sharing and selling rules
+  if (ruleId !== 'share_sell_rent' && ruleId !== 'share_marketing_partners' && ruleId !== 'share_debt_brokers') {
+    return false;
+  }
+
+  const normalized = clause.toLowerCase();
+
+  const isOperational =
+    /\b(service\s*providers?|vendors?|contractors?|hosting\s*(providers?|infrastructure)|payment\s*processors?|fraud\s*prevention|analytics\s*to\s*(improve|understand)\s*(our\s*)?(services?|website)|comply\s*with\s*(legal\s*obligations?|applicable\s*laws?|court\s*orders?)|legal\s*compliance|to\s*operate\s*our\s*services?|perform\s*services\s*on\s*our\s*behalf)\b/i.test(
+      normalized
+    );
+
+  const isExplicitPredatory =
+    /\b(sell(ing)?\s+(your\s+)?(personal\s*(data|info)|email)|data\s*brokers?|debt\s*collect(ion|ors?)|cross-context|behavioral\s*advertising)\b/i.test(
+      normalized
+    );
+
+  // If it's describing operational service providers and doesn't explicitly state selling data or debt brokers, exempt it!
+  return isOperational && !isExplicitPredatory;
 }
 
 /**
@@ -793,14 +836,17 @@ export function splitIntoClauses(text: string): string[] {
 
 /**
  * Extracts the exact matching sentence or snippet from the policy text.
- * Returns null if no actual sentence matches or if the sentence contains an active negation.
+ * Returns null if no actual sentence matches or if the sentence contains an active negation or operational exemption.
  */
-export function extractGroundedSnippet(text: string, pattern: RegExp): string | null {
+export function extractGroundedSnippet(text: string, pattern: RegExp, ruleId?: string): string | null {
   const clauses = splitIntoClauses(text);
 
   for (const clause of clauses) {
     if (pattern.test(clause)) {
       if (isNegatedClause(clause)) {
+        continue;
+      }
+      if (isOperationalServiceClause(clause, ruleId)) {
         continue;
       }
       const trimmed = clause.trim();
@@ -813,6 +859,9 @@ export function extractGroundedSnippet(text: string, pattern: RegExp): string | 
   for (const line of lines) {
     if (pattern.test(line)) {
       if (isNegatedClause(line)) {
+        continue;
+      }
+      if (isOperationalServiceClause(line, ruleId)) {
         continue;
       }
       return line.length > 240 ? line.substring(0, 237) + '...' : line;
@@ -1068,12 +1117,12 @@ export function buildDeepExecutiveVerdict(
   // Medium / Low
   switch (persona) {
     case 'accessibility':
-      return `Caution: We found ${findingsCount} items you should know about. Some charges or permissions may happen automatically if you do not cancel in time.`;
+      return `Caution: We found ${findingsCount} items you should know about. Some terms or permissions require your review to ensure they match your preferences.`;
     case 'privacy_pro':
       return `Moderate exposure profile (${score}/100). Identifies vendor-friendly terms including third-party telemetry, subscription renewal defaults, and legal limitations.`;
     case 'everyday':
     default:
-      return `Moderate risk detected (${score}/100). While typical for commercial apps, these terms include auto-renewal mechanisms and marketing telemetry that require your attention.`;
+      return `Moderate risk detected (${score}/100). While typical for commercial apps, these terms include standard arbitration, targeted ads, or renewal defaults that warrant your attention.`;
   }
 }
 
@@ -1097,7 +1146,7 @@ export function analyzeDeeply(
     let matchedSnippet: string | null = null;
 
     for (const pattern of rule.patterns) {
-      const snippet = extractGroundedSnippet(policyText, pattern);
+      const snippet = extractGroundedSnippet(policyText, pattern, rule.id);
       if (snippet) {
         matchedSnippet = snippet;
         break;
@@ -1136,7 +1185,7 @@ export function analyzeDeeply(
     });
   }
 
-  // Calculate score
+  // Calculate score using the untouched scoring formula
   const { score, verdictSeverity } = calculateDeepScore(matchedFindings, persona, context, tolerance);
 
   const executiveVerdict = buildDeepExecutiveVerdict(
